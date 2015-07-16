@@ -2,6 +2,8 @@ var qiniu = require('qiniu');
 var path = require('path');
 var fs = require('fs');
 
+var request = require('request');
+
 var log = require('tracer').console({
     transport : function(data) {
         console.log(data.output);
@@ -22,7 +24,7 @@ var formatDate = function(format) {
 	d = new Date();
     var yyyy = d.getFullYear().toString();
     format = format.replace(/yyyy/g, yyyy)
-    var mm = (d.getMonth()+1).toString(); 
+    var mm = (d.getMonth()+1).toString();
     format = format.replace(/mm/g, (mm[1]?mm:"0"+mm[0]));
     var dd  = d.getDate().toString();
     format = format.replace(/dd/g, (dd[1]?dd:"0"+dd[0]));
@@ -38,7 +40,7 @@ var formatDate = function(format) {
 
 if(process.argv.length<3) process.exit();
 
-var client = process.argv[2];
+var client = process.argv[2].replace(/\\/g,"").replace(/\//g,"");
 var title = process.argv[3];
 var file = process.argv[4];
 
@@ -46,7 +48,7 @@ var file = process.argv[4];
 var ext = path.extname(file);
 var saveFile = path.basename(file); //formatDate('yyyymmdd-hhiiss') + Math.random().toString().slice(1,5) + ext;
 
-var responseBody = 
+var responseBody =
 {
 	"key":"$(key)",
 	"hash":"$(hash)",
@@ -71,11 +73,33 @@ log.log( uptoken,saveFile, file, JSON.stringify(process.argv) );
 
 qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
   log.log(err, ret);
+
+  ret.person = "yangjm";
+  ret.folder = "/abc/";
+  saveIntoServer(ret);
+
 });
 
 
-sleep(15000);
+
+
+function saveIntoServer (info) {
+
+	request.post(
+	    'http://1111hui.com:3000/upfile',
+	    { form: info },
+	    function (error, response, body) {
+	        if (!error && response.statusCode == 200) {
+	            console.log(body)
+	        }
+	    }
+	);
+
+}
+
+
+//sleep(15000);
 function sleep(sleepTime) {
-for(var start = +new Date; +new Date - start <= sleepTime; ) { } 
+for(var start = +new Date; +new Date - start <= sleepTime; ) { }
 }
 
