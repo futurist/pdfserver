@@ -1,0 +1,15 @@
+{
+  "name": "pdfserver",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+	"tracer": "~0.7.4",
+	"qiniu": "~6.1.1"
+  },
+  "author": "",
+  "license": "ISC"
+}
