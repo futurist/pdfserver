@@ -18,7 +18,8 @@
 			view: {
 				showLine: true,
 				selectedMulti: true,
-				dblClickExpand: false
+				dblClickExpand: false,
+				expandSpeed: ""
 			},
 			data: {
 				keep:{
@@ -72,42 +73,41 @@
 			{ id:33, pId:3, name:"叶子节点3 - 3", t:"唉，随便点我吧"}
 		];
 
-zNodes = 
-[
-  {
-    "name": "abc",
-    "children": [
-      {
-        "name": "a",
-        "children": [
-          {
-            "name": "b",
-            "children": []
-          },
-          {
-            "name": "e",
-            "children": []
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "name": "a",
-    "children": [
-      {
-        "name": "b",
-        "children": [
-          {
-            "name": "c",
-            "children": []
-          }
-        ]
-      }
-    ]
-  }
-];
-zNodes = [{name:"root", children: zNodes}];
+
+
+
+
+
+function pathToObj (path, file) {
+	var str = path.split('/');
+	var p = root;
+	loop1:
+	for(var i=0; i<str.length; i++){
+		var name = str[i];
+		if(!name) continue;
+		for(var j=0; j<p.length; j++){
+			if( p[j].name == name ){
+				if( !p[j].children ) p[j].children = [];
+				p = p[j].children;
+				continue loop1;
+			}
+		}
+		p.push( {name:str[i], children:[]} );
+		p = p[p.length-1].children;
+	}
+	p.push({name:file||""});
+}
+var root=[];
+
+[ 
+{path:'/abc/a/e/', file:"pdf1"},
+{path:'/abc/a/b/', file:"pdf2"},
+{path:'/a/b/c/', file:"pdf3"},
+].forEach(function(v){
+	pathToObj( v.path, v.file)
+});
+
+zNodes = [{name:"root", children: root}];
 
 
 		function getPath (node, includeSelf) {

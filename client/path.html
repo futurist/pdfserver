@@ -11,14 +11,14 @@
   <script type="text/javascript">
 
 
-  
+
 a='/abc/a/b/'
 b='/a/b/c/'
 c='/abc/a/e/'
 
 var root=[];
 
-function pathToObj (path) {
+function pathToObj (path, file) {
 	var str = path.split('/');
 	var p = root;
 	loop1:
@@ -35,14 +35,14 @@ function pathToObj (path) {
 		p.push( {name:str[i], children:[]} );
 		p = p[p.length-1].children;
 	}
-	return root;
+	p.push({name:file||""});
 }
 
-a = pathToObj( a)
+a = pathToObj( a, "PDF1")
 b = pathToObj( b)
 c = pathToObj( c)
 
-console.log( c );
+console.log( root );
 
   </script>
  </body>
