@@ -12,9 +12,11 @@
 	<SCRIPT type="text/javascript">
 		<!--
 		var curMenu = null, treeObj = null;
+		var rMenu;
+		var addCount = 1;
 		var log, className = "dark", curDragNodes, autoExpandNode;
 		var setting = {
-			
+
 			view: {
 				showLine: true,
 				selectedMulti: true,
@@ -30,7 +32,7 @@
 					title:"t"
 				},
 				simpleData: {
-					enable: true
+					enable: false
 				}
 			},
 			edit: {
@@ -47,13 +49,16 @@
 			callback: {
 				beforeClick: beforeClick,
 				onClick: onClick,
+				onRightClick: OnRightClick,
 
 				beforeDrag: beforeDrag,
 				beforeDrop: beforeDrop,
 				beforeDragOpen: beforeDragOpen,
 				onDrag: onDrag,
 				onDrop: onDrop,
-				onExpand: onExpand
+				onExpand: onExpand,
+				beforeRename: beforeRename,
+				onRename:onRename,
 			}
 		};
 
@@ -78,7 +83,7 @@
 
 
 
-function pathToObj (path, file) {
+function pathToObj (path, file, title) {
 	var str = path.split('/');
 	var p = root;
 	loop1:
@@ -92,42 +97,128 @@ function pathToObj (path, file) {
 				continue loop1;
 			}
 		}
-		p.push( {name:str[i], children:[]} );
+		p.push( {name:str[i], t:str[i], children:[]} );
 		p = p[p.length-1].children;
 	}
-	p.push({name:file||""});
+	p.push({name:file||"", t:title||file||"" });
 }
+
+var rootName = 'root';
 var root=[];
 
-[ 
+[
+{path:'/', file:"pdf1", title:"asdf"},
 {path:'/abc/a/e/', file:"pdf1"},
 {path:'/abc/a/b/', file:"pdf2"},
 {path:'/a/b/c/', file:"pdf3"},
 ].forEach(function(v){
-	pathToObj( v.path, v.file)
+	pathToObj( v.path, v.file, v.title)
 });
 
-zNodes = [{name:"root", children: root}];
+zNodes = [{name:rootName, children: root}];
 
 
-		function getPath (node, includeSelf) {
-			var pstr = [];
-			var pNode = node;
-			if(includeSelf) pstr.push(pNode.name);
-			while (pNode && pNode.level !==0) {
-				pNode = pNode.getParentNode();
-				pstr.push(pNode.name);
+
+function OnRightClick(event, treeId, treeNode) {
+	console.log();
+			if (!treeNode && event.target.tagName.toLowerCase() != "button" && $(event.target).parents("a").length == 0) {
+				treeObj.cancelSelectedNode();
+				showRMenu("root", event.clientX, event.clientY);
+			} else if (treeNode && !treeNode.noR) {
+				treeObj.selectNode(treeNode);
+				showRMenu("node", event.clientX, event.clientY);
 			}
-			console.log(pstr.reverse().join('/'));
 		}
 
-
-		function getAllNodes () {
-			function filter (node) {
-				return true;
+		function showRMenu(type, x, y) {
+			$("#rMenu ul").show();
+			if (type=="root") {
+				$("#m_del").hide();
+				$("#m_check").hide();
+				$("#m_unCheck").hide();
+			} else {
+				$("#m_del").show();
+				$("#m_check").show();
+				$("#m_unCheck").show();
 			}
-			var nodes = treeObj.getNodesByFilter(filter); 
+			rMenu.css({"top":y+"px", "left":x+"px", "visibility":"visible"});
+
+			$("body").bind("mousedown", onBodyMouseDown);
 		}
+		function hideRMenu() {
+			if (rMenu) rMenu.css({"visibility": "hidden"});
+			$("body").unbind("mousedown", onBodyMouseDown);
+		}
+		function onBodyMouseDown(event){
+			if (!(event.target.id == "rMenu" || $(event.target).parents("#rMenu").length>0)) {
+				rMenu.css({"visibility" : "hidden"});
+			}
+		}
+		var addCount = 1;
+		function addTreeNode() {
+			hideRMenu();
+			var node;
+			var newNode = { name:"新建文件夹 " + (addCount++), isParent:true};
+			if (treeObj.getSelectedNodes()[0]) {
+				newNode.checked = treeObj.getSelectedNodes()[0].checked;
+				node = treeObj.addNodes(treeObj.getSelectedNodes()[0], newNode);
+			} else {
+				node = treeObj.addNodes(treeObj.getNodes()[0], newNode);
+			}
+
+			treeObj.editName(node[0]);
+			$('input.rename', $('#'+node[0].tId) ).get(0).select();
+		}
+
+		function beforeRename(treeId, treeNode, newName, isCancel)
+		{
+			var valid = true;
+
+			if(!isCancel && treeNode.name == newName) {
+				treeObj.cancelEditName(newName);
+				return false;
+			}
+			$.each(treeNode.getParentNode().children, function  (i,v) {
+				if(v!=treeNode && v.name == newName) {
+					valid = false;
+					return false;
+				}
+			});
+			if(!valid) alert("文件名与现有文件重名");
+			return valid;
+		}
+
+		function onRename(event, treeId, treeNode, isCancel)
+		{
+			if(!isCancel) serverUpdateNode(treeNode);
+		}
+
+		function removeTreeNode() {
+			hideRMenu();
+			var nodes = treeObj.getSelectedNodes();
+			if (nodes && nodes.length>0) {
+				if (nodes[0].children && nodes[0].children.length > 0) {
+					var msg = "要删除的节点是父节点，如果删除将连同子节点一起删掉。\n\n请确认！";
+					if (confirm(msg)==true){
+						treeObj.removeNode(nodes[0]);
+					}
+				} else {
+					treeObj.removeNode(nodes[0]);
+				}
+			}
+		}
+		function renameTreeNode() {
+			var nodes = treeObj.getSelectedNodes();
+			if (nodes && nodes.length>0) {
+				treeObj.editName(nodes[0]);
+			}
+			hideRMenu();
+		}
+		function resetTree() {
+			hideRMenu();
+			$.fn.zTree.init($("#treeDemo"), setting, zNodes);
+		}
+
 
 
 		function dropPrev(treeId, nodes, targetNode) {
@@ -156,7 +247,7 @@ zNodes = [{name:"root", children: root}];
 			} else {
 
 				if(checkLeaf(nodes) && targetNode.level==0) return false;
-				
+
 
 				for (var i=0,l=curDragNodes.length; i<l; i++) {
 					if (!targetNode && curDragNodes[i].dropRoot === false) {
@@ -169,7 +260,7 @@ zNodes = [{name:"root", children: root}];
 			return true;
 		}
 		function dropNext(treeId, nodes, targetNode) {
-			
+
 			var pNode = targetNode.getParentNode();
 			if(!pNode) return false;
 			if (pNode && !pNode.isParent) {
@@ -187,14 +278,8 @@ zNodes = [{name:"root", children: root}];
 			return true;
 		}
 
-		function checkLeaf (nodes) {
-			var isLeaf = true;
-			if( !$.isArray(nodes) ) nodes=[nodes];
-			$.each(nodes, function  (i,v) {
-				if(v.isParent) isLeaf = false;
-			});
-			return isLeaf;
-		}
+
+
 		function beforeDrag(treeId, treeNodes) {
 			className = (className === "dark" ? "":"dark");
 			showLog("[ "+getTime()+" beforeDrag ]&nbsp;&nbsp;&nbsp;&nbsp; drag: " + treeNodes.length + " nodes." );
@@ -228,7 +313,9 @@ zNodes = [{name:"root", children: root}];
 			showLog("[ "+getTime()+" onDrag ]&nbsp;&nbsp;&nbsp;&nbsp; drag: " + treeNodes.length + " nodes." );
 		}
 		function onDrop(event, treeId, treeNodes, targetNode, moveType, isCopy) {
-			console.log(event, treeId, treeNodes, targetNode, moveType, isCopy)
+
+			serverUpdateNode( treeNodes );
+
 			className = (className === "dark" ? "":"dark");
 			if(isCopy===false){	// we already moved the node, generate path
 				getPath(targetNode);
@@ -243,14 +330,6 @@ zNodes = [{name:"root", children: root}];
 			}
 		}
 
-		function checkRoot (targetNode) {
-			if(!targetNode) return true;
-			var pNode = targetNode.getParentNode();
-			if( !pNode ) return true;
-			console.log( pNode.level==0 );
-			if( pNode.level==0 ) return true;
-			return false;
-		}
 
 		function beforeClick(treeId, treeNode, clickFlag) {
 			var nodes = treeObj.getSelectedNodes()
@@ -264,7 +343,7 @@ zNodes = [{name:"root", children: root}];
 		}
 		function onClick(event, treeId, treeNode, clickFlag) {
 			showLog("[ "+getTime()+" onClick ]&nbsp;&nbsp;clickFlag = " + clickFlag + " (" + (clickFlag===1 ? "普通选中": (clickFlag===0 ? "<b>取消选中</b>" : "<b>追加选中</b>")) + ")");
-		}		
+		}
 		function showLog(str) {
 			if (!log) log = $("#log");
 			log.append("<li class='"+className+"'>"+str+"</li>");
@@ -285,14 +364,94 @@ zNodes = [{name:"root", children: root}];
 			$.fn.zTree.init($("#treeDemo"), setting, zNodes);
 
 			treeObj = $.fn.zTree.getZTreeObj("treeDemo");
+
 			curMenu = treeObj.getNodes()[0].children[0];
+
 			treeObj.selectNode(curMenu);
+
+			rMenu = $("#rMenu");
+
 		});
+
+
+
+		function getPath (node, includeSelf) {
+			var pstr = [];
+			var pNode = node;
+			if(includeSelf || (node && node.isParent) ) pstr.push(pNode.name);
+			while (pNode && pNode.level !==0) {
+				pNode = pNode.getParentNode();
+				pstr.push(pNode.name);
+			}
+			var path = '/'+(pstr.reverse().join('/'))+'/';
+			return path.replace('/'+rootName, '');
+		}
+
+
+		function checkLeaf (nodes) {
+			var isLeaf = true;
+			if( !$.isArray(nodes) ) nodes=[nodes];
+			$.each(nodes, function  (i,v) {
+				if(v.isParent) isLeaf = false;
+			});
+			return isLeaf;
+		}
+
+		function getAllLeafs ( theNodes ) {
+			if( !$.isArray(theNodes) ) theNodes=[theNodes];
+
+			function filter (node) {
+				if(!node.isParent || node.children.length==0) return true;
+			}
+
+			var nodes = [];
+			$.each(theNodes, function  (i,v) {
+				if(v.isParent) {
+					if( v.children.length==0 ) nodes.push(v);
+					else nodes = nodes.concat( treeObj.getNodesByFilter(filter, false, v) );
+				} else {
+					nodes.push(v);
+				}
+			});
+			return (nodes);
+		}
+
+
+
+
+		function serverUpdateNode (treeNodes) {
+			var changedNodes = getAllLeafs(treeNodes);
+			$.each(changedNodes, function  (i,v) {
+				v.path = getPath(v);
+			});
+			console.log(changedNodes);
+		}
 		//-->
 	</SCRIPT>
+
+<style type="text/css">
+	div#rMenu {position:absolute; z-index: 9999; visibility:hidden; top:0; background-color: #555;text-align: left;padding: 2px;}
+	div#rMenu ul li{
+		margin: 1px 0;
+		padding: 0 5px;
+		cursor: pointer;
+		list-style: none outside none;
+		background-color: #DFDFDF;
+	}
+</style>
+
 </HEAD>
 
 <BODY>
+<div id="rMenu">
+	<ul>
+		<li id="m_add" onclick="addTreeNode();">新建</li>
+		<li id="m_del" onclick="removeTreeNode();">删除</li>
+		<li id="m_check" onclick="renameTreeNode();">重命名</li>
+		<li id="m_reset" onclick="resetTree();">恢复zTree</li>
+	</ul>
+</div>
+
 <h1>单击节点控制</h1>
 <h6>[ 文件路径: core/click.html ]</h6>
 <div class="content_wrap">
