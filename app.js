@@ -44,6 +44,7 @@ var client = process.argv[2].replace(/\\/g,"").replace(/\//g,"");
 var title = process.argv[3];
 var file = process.argv[4];
 
+title = title.replace('Microsoft', '');
 
 var ext = path.extname(file);
 var saveFile = path.basename(file); //formatDate('yyyymmdd-hhiiss') + Math.random().toString().slice(1,5) + ext;
@@ -55,6 +56,8 @@ var responseBody =
 	"imageWidth":"$(imageInfo.width)",
 	"imageHeight":"$(imageInfo.height)",
 	type:"$(type)",
+	client:client,
+	title:title,
 	fname:"$(fname)",
 	fsize:"$(fsize)"
 };
@@ -75,7 +78,7 @@ qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
   log.log(err, ret);
 
   ret.person = "yangjm";
-  ret.folder = "/abc/";
+  //ret.path = "/abc/";
   saveIntoServer(ret);
 
 });
