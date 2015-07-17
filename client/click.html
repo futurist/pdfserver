@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<HTML>
+<HEAD>
+	<TITLE> ZTREE DEMO - beforeClick / onClick</TITLE>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<link rel="stylesheet" href="./css/demo.css" type="text/css">
+	<link rel="stylesheet" href="./css/zTreeStyle/zTreeStyle.css" type="text/css">
+	<script type="text/javascript" src="./js/jquery-1.4.4.min.js"></script>
+	<script type="text/javascript" src="./js/jquery.ztree.all-3.5.min.js"></script>
+	<!--  <script type="text/javascript" src="./js/jquery.ztree.excheck-3.5.js"></script>
+	  <script type="text/javascript" src="./js/jquery.ztree.exedit-3.5.js"></script>-->
+	<SCRIPT type="text/javascript">
+		<!--
+		var curMenu = null, treeObj = null;
+		var log, className = "dark", curDragNodes, autoExpandNode;
+		var setting = {
+			
+			view: {
+				showLine: true,
+				selectedMulti: true,
+				dblClickExpand: false
+			},
+			data: {
+				keep:{
+					parent:true,
+					leaf:true
+				},
+				key: {
+					title:"t"
+				},
+				simpleData: {
+					enable: true
+				}
+			},
+			edit: {
+				drag: {
+					autoExpandTrigger: true,
+					prev: dropPrev,
+					inner: dropInner,
+					next: dropNext
+				},
+				enable: true,
+				showRemoveBtn: false,
+				showRenameBtn: false
+			},
+			callback: {
+				beforeClick: beforeClick,
+				onClick: onClick,
+
+				beforeDrag: beforeDrag,
+				beforeDrop: beforeDrop,
+				beforeDragOpen: beforeDragOpen,
+				onDrag: onDrag,
+				onDrop: onDrop,
+				onExpand: onExpand
+			}
+		};
+
+		var zNodes =[
+			{ id:0, pId:-1, name:"根 Root", open:true, click:false},
+			{ id:1, pId:0, name:"普通的父节点", t:"我很普通，随便点我吧", open:true},
+			{ id:11, pId:1, name:"叶子节点 - 1", t:"我很普通，随便点我吧"},
+			{ id:12, pId:1, name:"叶子节点 - 2", t:"我很普通，随便点我吧"},
+			{ id:13, pId:1, name:"叶子节点 - 3", t:"我很普通，随便点我吧"},
+			{ id:2, pId:0, name:"NB的父节点", t:"点我可以，但是不能点我的子节点，有本事点一个你试试看？", open:false},
+			{ id:21, pId:2, name:"叶子节点2 - 1", t:"你哪个单位的？敢随便点我？小心点儿.."},
+			{ id:22, pId:2, name:"叶子节点2 - 2", t:"我有老爸罩着呢，点击我的小心点儿.."},
+			{ id:23, pId:2, name:"叶子节点2 - 3", t:"好歹我也是个领导，别普通群众就来点击我.."},
+			{ id:3, pId:0, name:"郁闷的父节点", t:"别点我，我好害怕...我的子节点随便点吧...", open:true },
+			{ id:31, pId:3, name:"叶子节点3 - 1", t:"唉，随便点我吧"},
+			{ id:32, pId:3, name:"叶子节点3 - 2", t:"唉，随便点我吧"},
+			{ id:33, pId:3, name:"叶子节点3 - 3", t:"唉，随便点我吧"}
+		];
+
+
+		function getPath (node, includeSelf) {
+			var pstr = [];
+			var pNode = node;
+			if(includeSelf) pstr.push(pNode.name);
+			while (pNode && pNode.level !==0) {
+				pNode = pNode.getParentNode();
+				pstr.push(pNode.name);
+			}
+			console.log(pstr.reverse().join('/'));
+		}
+
+
+		function getAllNodes () {
+			function filter (node) {
+				return true;
+			}
+			var nodes = treeObj.getNodesByFilter(filter); 
+		}
+
+
+		function dropPrev(treeId, nodes, targetNode) {
+
+			var pNode = targetNode.getParentNode();
+			if(!pNode) return false;
+			if (pNode && !pNode.isParent ) {
+				return false;
+			} else {
+				if(checkLeaf(nodes) && pNode.level==0) return false;
+
+				for (var i=0,l=curDragNodes.length; i<l; i++) {
+					var curPNode = curDragNodes[i].getParentNode();
+					if (curPNode && curPNode !== targetNode.getParentNode() && curPNode.childOuter === false) {
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+		function dropInner(treeId, nodes, targetNode) {
+			if(!targetNode) return false;
+
+			if (targetNode && !targetNode.isParent) {
+				return false;
+			} else {
+
+				if(checkLeaf(nodes) && targetNode.level==0) return false;
+				
+
+				for (var i=0,l=curDragNodes.length; i<l; i++) {
+					if (!targetNode && curDragNodes[i].dropRoot === false) {
+						return false;
+					} else if (curDragNodes[i].parentTId && curDragNodes[i].getParentNode() !== targetNode && curDragNodes[i].getParentNode().childOuter === false) {
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+		function dropNext(treeId, nodes, targetNode) {
+			
+			var pNode = targetNode.getParentNode();
+			if(!pNode) return false;
+			if (pNode && !pNode.isParent) {
+				return false;
+			} else {
+				if(checkLeaf(nodes) && pNode.level==0) return false;
+
+				for (var i=0,l=curDragNodes.length; i<l; i++) {
+					var curPNode = curDragNodes[i].getParentNode();
+					if (curPNode && curPNode !== targetNode.getParentNode() && curPNode.childOuter === false) {
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+
+		function checkLeaf (nodes) {
+			var isLeaf = true;
+			if( !$.isArray(nodes) ) nodes=[nodes];
+			$.each(nodes, function  (i,v) {
+				if(v.isParent) isLeaf = false;
+			});
+			return isLeaf;
+		}
+		function beforeDrag(treeId, treeNodes) {
+			className = (className === "dark" ? "":"dark");
+			showLog("[ "+getTime()+" beforeDrag ]&nbsp;&nbsp;&nbsp;&nbsp; drag: " + treeNodes.length + " nodes." );
+			for (var i=0,l=treeNodes.length; i<l; i++) {
+				if (treeNodes[i].drag === false) {
+					curDragNodes = null;
+					return false;
+				} else if (treeNodes[i].parentTId && treeNodes[i].getParentNode().childDrag === false) {
+					curDragNodes = null;
+					return false;
+				}
+			}
+			curDragNodes = treeNodes;
+			return true;
+		}
+
+		function beforeDragOpen(treeId, treeNode) {
+			autoExpandNode = treeNode;
+			return true;
+		}
+
+		function beforeDrop(treeId, treeNodes, targetNode, moveType, isCopy) {
+
+			className = (className === "dark" ? "":"dark");
+			showLog("[ "+getTime()+" beforeDrop ]&nbsp;&nbsp;&nbsp;&nbsp; moveType:" + moveType);
+			showLog("target: " + (targetNode ? targetNode.name : "root") + "  -- is "+ (isCopy==null? "cancel" : isCopy ? "copy" : "move"));
+			return true;
+		}
+		function onDrag(event, treeId, treeNodes) {
+			className = (className === "dark" ? "":"dark");
+			showLog("[ "+getTime()+" onDrag ]&nbsp;&nbsp;&nbsp;&nbsp; drag: " + treeNodes.length + " nodes." );
+		}
+		function onDrop(event, treeId, treeNodes, targetNode, moveType, isCopy) {
+			console.log(event, treeId, treeNodes, targetNode, moveType, isCopy)
+			className = (className === "dark" ? "":"dark");
+			if(isCopy===false){	// we already moved the node, generate path
+				getPath(targetNode);
+			}
+			showLog("[ "+getTime()+" onDrop ]&nbsp;&nbsp;&nbsp;&nbsp; moveType:" + moveType);
+			showLog("target: " + (targetNode ? targetNode.name : "root") + "  -- is "+ (isCopy==null? "cancel" : isCopy ? "copy" : "move"))
+		}
+		function onExpand(event, treeId, treeNode) {
+			if (treeNode === autoExpandNode) {
+				className = (className === "dark" ? "":"dark");
+				showLog("[ "+getTime()+" onExpand ]&nbsp;&nbsp;&nbsp;&nbsp;" + treeNode.name);
+			}
+		}
+
+		function checkRoot (targetNode) {
+			if(!targetNode) return true;
+			var pNode = targetNode.getParentNode();
+			if( !pNode ) return true;
+			console.log( pNode.level==0 );
+			if( pNode.level==0 ) return true;
+			return false;
+		}
+
+		function beforeClick(treeId, treeNode, clickFlag) {
+			var nodes = treeObj.getSelectedNodes()
+			getPath(nodes[0]);
+			className = (className === "dark" ? "":"dark");
+			if (treeNode.isParent && treeNode.click!==false) {
+				treeObj.expandNode(treeNode);
+			}
+			showLog("[ "+getTime()+" beforeClick ]&nbsp;&nbsp;" + treeNode.name );
+			return (treeNode.click != false);
+		}
+		function onClick(event, treeId, treeNode, clickFlag) {
+			showLog("[ "+getTime()+" onClick ]&nbsp;&nbsp;clickFlag = " + clickFlag + " (" + (clickFlag===1 ? "普通选中": (clickFlag===0 ? "<b>取消选中</b>" : "<b>追加选中</b>")) + ")");
+		}		
+		function showLog(str) {
+			if (!log) log = $("#log");
+			log.append("<li class='"+className+"'>"+str+"</li>");
+			if(log.children("li").length > 8) {
+				log.get(0).removeChild(log.children("li")[0]);
+			}
+		}
+		function getTime() {
+			var now= new Date(),
+			h=now.getHours(),
+			m=now.getMinutes(),
+			s=now.getSeconds();
+			return (h+":"+m+":"+s);
+		}
+
+		$(document).ready(function(){
+
+			$.fn.zTree.init($("#treeDemo"), setting, zNodes);
+
+			treeObj = $.fn.zTree.getZTreeObj("treeDemo");
+			curMenu = treeObj.getNodes()[0].children[0];
+			treeObj.selectNode(curMenu);
+		});
+		//-->
+	</SCRIPT>
+</HEAD>
+
+<BODY>
+<h1>单击节点控制</h1>
+<h6>[ 文件路径: core/click.html ]</h6>
+<div class="content_wrap">
+	<div class="zTreeDemoBackground left">
+		<ul id="treeDemo" class="ztree"></ul>
+	</div>
+	<div class="right">
+		<ul class="info">
+			<li class="title"><h2>1、beforeClick / onClick 事件回调函数控制</h2>
+				<ul class="list">
+				<li>利用 click 事件回调函数 可以进行各种其他的附加操作，这里简单演示如何监控此事件</li>
+				<li><p><span class="highlight_red">请尝试按下 <b>Ctrl</b> 或 <b>Cmd</b> 键进行 多节点选择 和 取消选择</span><br/>
+					click log:<br/>
+					<ul id="log" class="log"></ul></p>
+				</li>
+				</ul>
+			</li>
+			<li class="title"><h2>2、setting 配置信息说明</h2>
+				<ul class="list">
+				<li class="highlight_red">需要设置 setting.callback.beforeClick 和  setting.callback.onClick 属性, 详细请参见 API 文档中的相关内容</li>
+				</ul>
+			</li>
+			<li class="title"><h2>3、treeNode 节点数据说明</h2>
+				<ul class="list">
+				<li>对 节点数据 没有特殊要求，用户可以根据自己的需求添加自定义属性</li>
+				</ul>
+			</li>
+		</ul>
+	</div>
+</div>
+</BODY>
+</HTML>

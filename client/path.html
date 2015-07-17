@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="Keywords" content="">
+  <meta name="Description" content="">
+  <title>Document</title>
+ </head>
+ <body>
+  <script type="text/javascript" src="http://1111hui.com/js/jquery.js"></script>
+  <script type="text/javascript" src="js/lodash.min.js"></script>
+  <script type="text/javascript">
+a='/abc/a/b/'
+b='/a/b/c/'
+c='/abc/a/e/'
+
+var json={};
+
+function pathToObj (rootName, path) {
+	var str = path.split('/');
+	var root=[{name:rootName}];
+	var p = root;
+	for(var i=0; i<str.length; i++){
+		if(!str[i]) continue;
+		p[0].children = [{name:str[i]}];
+		p = p[0].children;
+	}
+	return root;
+}
+
+var defaults = _.partialRight(_.assign, function(value, other) {
+	console.log(value, other)
+  return _.isUndefined(value) ? other : value;
+});
+
+a = pathToObj('root', a)
+b = pathToObj('root', b)
+c = pathToObj('root', c)
+
+console.log( _.defaultsDeep( a,b,c) );
+
+  </script>
+ </body>
+</html>
