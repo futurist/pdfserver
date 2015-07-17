@@ -72,6 +72,43 @@
 			{ id:33, pId:3, name:"叶子节点3 - 3", t:"唉，随便点我吧"}
 		];
 
+zNodes = 
+[
+  {
+    "name": "abc",
+    "children": [
+      {
+        "name": "a",
+        "children": [
+          {
+            "name": "b",
+            "children": []
+          },
+          {
+            "name": "e",
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "a",
+    "children": [
+      {
+        "name": "b",
+        "children": [
+          {
+            "name": "c",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+];
+zNodes = [{name:"root", children: zNodes}];
+
 
 		function getPath (node, includeSelf) {
 			var pstr = [];
