@@ -59,13 +59,11 @@ app.post("/upfile", function (req, res) {
   var person = data.person;
   var path = '/';   //first upload to root path
   var fname = data.fname;
-  console.log('upfile',data);
 
-  col.update({ person: person, path:path }, { person: person, date: new Date(), client:data.client, title:data.title, path:path, key:data.key, fname:fname, hash:data.hash, type:data.type, fsize:data.fsize, imageWidth:data.imageWidth, imageHeight:data.imageHeight } , {upsert:true, w: 1}, function(err, result) {
-      console.log('upfile: ', result.nModified, data.key, data.hash);
+  col.update({ hash:data.hash }, { person: person, date: new Date(), client:data.client, title:data.title, path:path, key:data.key, fname:fname, hash:data.hash, type:data.type, fsize:data.fsize, imageWidth:data.imageWidth, imageHeight:data.imageHeight } , {upsert:true, w: 1}, function(err, result) {
+      console.log('upfile: ', data, result.result.nModified);
    });
 
-  console.log(path+fname);
   res.send(path+fname);
 });
 
@@ -80,13 +78,34 @@ app.post("/getfile", function (req, res) {
   });
 });
 
+
+function breakIntoPath(path){
+  var part = path.split('/');
+  var ret = [], dd = []; 
+  for(var i=0; i<part.length-1;i++){  
+    dd.push(part[i]);
+    ret.push( dd.join('/') + '/' );
+  }
+  return ret.slice(1);
+}
+
 app.post("/updatefile", function (req, res) {
   var data = req.body.data;
+  var type = req.body.type;
+  var hashArr = data.map(function  (v) {
+    return v.hash;
+  });
   data.forEach(function  (v,i) {
     var newV = _.extend(v, {date:new Date() } );
-    console.log(v.hash, newV);
-    col.update({hash: v.hash}, newV, {upsert:true, w:1}, function  (err, result) { } );
+    console.log(v.hash, hashArr);
+    col.update({hash: v.hash}, newV, {upsert:true, w:1}, function  (err, result) {
+      var pathPart = breakIntoPath(v.path);
+      if(err==null && pathPart.length && hashArr.length ) {
+        col.remove({path:{ $in: pathPart }, key:{$in:[null,'']}, hash:{$not:{$in:hashArr}} });
+      }
+    } );
   });
+
   res.send("update file ok");
 });
 

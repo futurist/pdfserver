@@ -7,7 +7,7 @@ var request = require('request');
 var log = require('tracer').console({
     transport : function(data) {
         console.log(data.output);
-        fs.open('./log.txt', 'a', 0666, function(e, id) {
+        fs.open('c:/log.txt', 'a', 0666, function(e, id) {
             fs.write(id, data.output+"\n", null, 'utf8', function() {
                 fs.close(id, function() {
                 });

@@ -172,8 +172,8 @@ var formatDate = function(format) {
 };
 
 
-function OnRightClick(event, treeId, treeNode) {
-
+		function OnRightClick(event, treeId, treeNode) {
+			console.log(treeNode);
 			if (!treeNode && event.target.tagName.toLowerCase() != "button" && $(event.target).parents("a").length == 0) {
 				treeObj.cancelSelectedNode();
 				showRMenu("root", event.clientX, event.clientY);
@@ -251,7 +251,7 @@ function OnRightClick(event, treeId, treeNode) {
 		function onRename(event, treeId, treeNode, isCancel)
 		{
 			treeNode.title = treeNode.name;
-			if(!isCancel || treeNode.isNew) serverUpdateNode(treeNode);
+			if(!isCancel || treeNode.isNew) serverUpdateNode('rename', treeNode);
 			treeNode.isNew = false;
 		}
 
@@ -385,12 +385,10 @@ function OnRightClick(event, treeId, treeNode) {
 		}
 		function onDrop(event, treeId, treeNodes, targetNode, moveType, isCopy) {
 
-			if(isCopy===false) serverUpdateNode( treeNodes );
+			if(isCopy===false) serverUpdateNode('move', treeNodes );
 
 			className = (className === "dark" ? "":"dark");
-			if(isCopy===false){	// we already moved the node, generate path
-				getPath(targetNode);
-			}
+
 			showLog("[ "+getTime()+" onDrop ]&nbsp;&nbsp;&nbsp;&nbsp; moveType:" + moveType);
 			showLog("target: " + (targetNode ? targetNode.name : "root") + "  -- is "+ (isCopy==null? "cancel" : isCopy ? "copy" : "move"))
 		}
@@ -404,7 +402,6 @@ function OnRightClick(event, treeId, treeNode) {
 
 		function beforeClick(treeId, treeNode, clickFlag) {
 			var nodes = treeObj.getSelectedNodes()
-			getPath(nodes[0]);
 			className = (className === "dark" ? "":"dark");
 			if (treeNode.isParent && treeNode.click!==false) {
 				treeObj.expandNode(treeNode);
@@ -501,7 +498,17 @@ function OnRightClick(event, treeId, treeNode) {
 
 
 
-		function serverUpdateNode (treeNodes) {
+function breakIntoPath(path){
+  var part = path.split('/');
+  var ret = [], dd = []; 
+  for(var i=0; i<part.length-1;i++){  
+    dd.push(part[i]);
+    ret.push( dd.join('/') + '/' );
+  }
+  return ret.slice(1);
+}
+
+		function serverUpdateNode (type, treeNodes ) {
 			var changedNodes = getAllLeafs(treeNodes);
 
 			// merge parentNode if DragParentNode become an empty folder
@@ -510,6 +517,7 @@ function OnRightClick(event, treeId, treeNode) {
 			// };
 
 			var postArr = [];
+			var partPath = [];
 			$.each(changedNodes, function  (i,v) {
 				v.path = getPath(v);
 				if(!v.hash) v.hash = +new Date()+Math.random();
@@ -518,9 +526,26 @@ function OnRightClick(event, treeId, treeNode) {
 				  return o;
 				}, {});
 				postArr.push(obj);
+				$.merge( partPath, breakIntoPath(v.path) );
 			});
-			console.log(postArr);
-			$.post( host+'/updatefile', {data:postArr} );
+			$.post( host+'/updatefile', {type:type, data:postArr} );
+
+			//clean up all empty folder with part of the filename
+			partPath = $.unique(partPath);
+			var delelteNodes = treeObj.getNodesByFilter(function (node) {
+				if( changedNodes.indexOf(node)>-1 ) return false;
+				if(node.path && partPath.indexOf(node.path)>-1 && !node.key 
+					&& (!node.children || (node.children&&node.children.length==0) ) ){
+					return true;
+				}
+			});
+			console.log(postArr, partPath, delelteNodes);
+			delelteNodes.forEach(function  (node) {
+				console.log('removeNode', node);
+					treeObj.removeNode(node);
+			});
+
+
 		}
 		//-->
 	</SCRIPT>
