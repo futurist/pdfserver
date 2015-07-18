@@ -29,7 +29,7 @@
 					leaf:true
 				},
 				key: {
-					title:"t"
+					title:"title"
 				},
 				simpleData: {
 					enable: false
@@ -81,11 +81,21 @@
 
 
 
+var host = "http://1111hui.com:3000";
+var rootName = 'yangjm';
+var root=[];
+var fileData=null;
+var fileKeys=null;
+var addCount = 1;
+var DragParentNode = null;
 
-
-function pathToObj (path, file, title) {
+function pathToObj (v) {
+	var path = v.path;
+	var file = v.key;
+	var title = v.title;
 	var str = path.split('/');
 	var p = root;
+	//if(!file) str.splice(str.length-2, 2);
 	loop1:
 	for(var i=0; i<str.length; i++){
 		var name = str[i];
@@ -97,32 +107,73 @@ function pathToObj (path, file, title) {
 				continue loop1;
 			}
 		}
-		p.push( {name:str[i], t:str[i], children:[]} );
+		if(i==str.length-2 && !file ){
+			//it's folder Leaf node
+			var folder = $.extend( { person:rootName, name:name, oldName:name, oldPath:v.path, isParent:true}, v);
+			p.push(folder);
+
+		}else{
+			p.push( {name:str[i], title:str[i], children:[]} );
+		}
 		p = p[p.length-1].children;
 	}
-	p.push({name:file||"", t:title||file||"" });
+	var name = title||file||"";
+	//If we have key it's file LEAF
+	if(file && p) p.push( $.extend( {name:name, oldName:name, oldPath:v.path}, v) );
+	
+	//else we are creating empty folder LEAF
+
 }
 
-var rootName = 'root';
-var root=[];
+function all () {
+	console.log( treeObj.getNodesByFilter(function(){return true}) )
+}
 
-[
-{path:'/', file:"pdf1", title:"asdf"},
-{path:'/abc/a/e/', file:"pdf1"},
-{path:'/abc/a/b/', file:"pdf2"},
-{path:'/a/b/c/', file:"pdf3"},
-{path:'/a/b/c/', file:"pdf4"},
-{path:'/a/b/c/', file:"pdf5"},
-].forEach(function(v){
-	pathToObj( v.path, v.file, v.title)
-});
+function getFilesData () {
 
-zNodes = [{name:rootName, children: root}];
+	/*****
+	* File Data format should be:
+	[
+	{path:'/', file:"pdf1", title:"asdf"},
+	{path:'/abc/a/e/', file:"pdf1"},
+	{path:'/abc/a/b/', file:"pdf2"},
+	{path:'/a/b/c/', file:"pdf3"},
+	{path:'/a/b/c/', file:"pdf4"},
+	{path:'/a/b/c/', file:"pdf5"},
+	]
+	*
+	***/
 
+	$.post(host+'/getfile', {person:rootName}, function  (data) {
+		data = JSON.parse(data);
+
+		init(data);
+	});
+
+	
+}
+getFilesData();
+
+var formatDate = function(format) {
+	d = new Date();
+    var yyyy = d.getFullYear().toString();
+    format = format.replace(/yyyy/g, yyyy)
+    var mm = (d.getMonth()+1).toString();
+    format = format.replace(/mm/g, (mm[1]?mm:"0"+mm[0]));
+    var dd  = d.getDate().toString();
+    format = format.replace(/dd/g, (dd[1]?dd:"0"+dd[0]));
+    var hh = d.getHours().toString();
+    format = format.replace(/hh/g, (hh[1]?hh:"0"+hh[0]));
+    var ii = d.getMinutes().toString();
+    format = format.replace(/ii/g, (ii[1]?ii:"0"+ii[0]));
+    var ss  = d.getSeconds().toString();
+    format = format.replace(/ss/g, (ss[1]?ss:"0"+ss[0]));
+    return format;
+};
 
 
 function OnRightClick(event, treeId, treeNode) {
-	console.log();
+
 			if (!treeNode && event.target.tagName.toLowerCase() != "button" && $(event.target).parents("a").length == 0) {
 				treeObj.cancelSelectedNode();
 				showRMenu("root", event.clientX, event.clientY);
@@ -156,18 +207,20 @@ function OnRightClick(event, treeId, treeNode) {
 				rMenu.css({"visibility" : "hidden"});
 			}
 		}
-		var addCount = 1;
+
 		function addTreeNode() {
 			hideRMenu();
 			var node;
-			var newNode = { name:"新建文件夹 " + (addCount++), isParent:true};
+			var name = "新建文件夹 " + (addCount++);
+			name = formatDate('yyyy-mm-dd hh:ii:ss');
+			var newNode = { name:name, title:name, hash:+new Date()+Math.random(), person:rootName, isNew:true, isParent:true};
 			if (treeObj.getSelectedNodes()[0]) {
 				newNode.checked = treeObj.getSelectedNodes()[0].checked;
 				node = treeObj.addNodes(treeObj.getSelectedNodes()[0], newNode);
 			} else {
 				node = treeObj.addNodes(treeObj.getNodes()[0], newNode);
 			}
-
+			if(!node) return;
 			treeObj.editName(node[0]);
 			$('input.rename', $('#'+node[0].tId) ).get(0).select();
 		}
@@ -175,24 +228,31 @@ function OnRightClick(event, treeId, treeNode) {
 		function beforeRename(treeId, treeNode, newName, isCancel)
 		{
 			var valid = true;
+			
+			if(newName==""){
+				alert( "请指定一个名称");
+				return false;
+			}
 
-			if(!isCancel && treeNode.name == newName) {
+			if(!isCancel && ( treeNode.name == newName ) ) {
 				treeObj.cancelEditName(newName);
 				return false;
 			}
 			$.each(treeNode.getParentNode().children, function  (i,v) {
-				if(v!=treeNode && v.name == newName) {
+				if(v!=treeNode && v.name == newName && v.isParent==treeNode.isParent ) {
 					valid = false;
 					return false;
 				}
 			});
-			if(!valid) alert("文件名与现有文件重名");
+			if(!valid) alert( "文件名与现有文件重名");
 			return valid;
 		}
 
 		function onRename(event, treeId, treeNode, isCancel)
 		{
-			if(!isCancel) serverUpdateNode(treeNode);
+			treeNode.title = treeNode.name;
+			if(!isCancel || treeNode.isNew) serverUpdateNode(treeNode);
+			treeNode.isNew = false;
 		}
 
 		function removeTreeNode() {
@@ -203,9 +263,11 @@ function OnRightClick(event, treeId, treeNode) {
 					var msg = "要删除的节点是父节点，如果删除将连同子节点一起删掉。\n\n请确认！";
 					if (confirm(msg)==true){
 						treeObj.removeNode(nodes[0]);
+						$.post(host+'/removeFolder', { path:nodes[0].path, deleteAll: true}, function  () {} );
 					}
 				} else {
 					treeObj.removeNode(nodes[0]);
+					$.post(host+'/removeFile', { hash:nodes[0].hash }, function  () {} );
 				}
 			}
 		}
@@ -283,6 +345,12 @@ function OnRightClick(event, treeId, treeNode) {
 
 
 		function beforeDrag(treeId, treeNodes) {
+			var isRoot = false;
+			$.each(treeNodes, function  (i,v) {
+				if(v.level==0) isRoot=true;
+			});
+			if(isRoot) return false;
+
 			className = (className === "dark" ? "":"dark");
 			showLog("[ "+getTime()+" beforeDrag ]&nbsp;&nbsp;&nbsp;&nbsp; drag: " + treeNodes.length + " nodes." );
 			for (var i=0,l=treeNodes.length; i<l; i++) {
@@ -304,19 +372,20 @@ function OnRightClick(event, treeId, treeNode) {
 		}
 
 		function beforeDrop(treeId, treeNodes, targetNode, moveType, isCopy) {
-
+			DragParentNode = (treeNodes[0].getParentNode() );
 			className = (className === "dark" ? "":"dark");
 			showLog("[ "+getTime()+" beforeDrop ]&nbsp;&nbsp;&nbsp;&nbsp; moveType:" + moveType);
 			showLog("target: " + (targetNode ? targetNode.name : "root") + "  -- is "+ (isCopy==null? "cancel" : isCopy ? "copy" : "move"));
 			return true;
 		}
+
 		function onDrag(event, treeId, treeNodes) {
 			className = (className === "dark" ? "":"dark");
 			showLog("[ "+getTime()+" onDrag ]&nbsp;&nbsp;&nbsp;&nbsp; drag: " + treeNodes.length + " nodes." );
 		}
 		function onDrop(event, treeId, treeNodes, targetNode, moveType, isCopy) {
 
-			serverUpdateNode( treeNodes );
+			if(isCopy===false) serverUpdateNode( treeNodes );
 
 			className = (className === "dark" ? "":"dark");
 			if(isCopy===false){	// we already moved the node, generate path
@@ -361,7 +430,20 @@ function OnRightClick(event, treeId, treeNode) {
 			return (h+":"+m+":"+s);
 		}
 
-		$(document).ready(function(){
+
+		function init(data){
+
+			fileData = data;
+
+			data.forEach(function(v){
+				pathToObj( v );
+				fileKeys = Object.keys(v);
+			});
+			zNodes = [{name:rootName, isParent:true, children: root}];
+			
+			fileKeys = ["person", "date", "client", "title", "path", "key", "fname", "hash", "type", "fsize", "imageWidth", "imageHeight"];
+			//fileKeys = fileKeys.concat( ['path', 'hash'].filter(function (item) { return fileKeys.indexOf(item) < 0 }) );
+			//fileKeys.splice( fileKeys.indexOf('_id'), 1 );
 
 			$.fn.zTree.init($("#treeDemo"), setting, zNodes);
 
@@ -373,9 +455,7 @@ function OnRightClick(event, treeId, treeNode) {
 
 			rMenu = $("#rMenu");
 
-		});
-
-
+		}
 
 		function getPath (node, includeSelf) {
 			var pstr = [];
@@ -403,13 +483,13 @@ function OnRightClick(event, treeId, treeNode) {
 			if( !$.isArray(theNodes) ) theNodes=[theNodes];
 
 			function filter (node) {
-				if(!node.isParent || node.children.length==0) return true;
+				if(!node.isParent || ( node.children && node.children.length==0) ) return true;
 			}
 
 			var nodes = [];
 			$.each(theNodes, function  (i,v) {
 				if(v.isParent) {
-					if( v.children.length==0 ) nodes.push(v);
+					if( !v.children || v.children.length==0 ) nodes.push(v);
 					else nodes = nodes.concat( treeObj.getNodesByFilter(filter, false, v) );
 				} else {
 					nodes.push(v);
@@ -423,10 +503,24 @@ function OnRightClick(event, treeId, treeNode) {
 
 		function serverUpdateNode (treeNodes) {
 			var changedNodes = getAllLeafs(treeNodes);
+
+			// merge parentNode if DragParentNode become an empty folder
+			// if(DragParentNode && DragParentNode.isParent && DragParentNode.children && DragParentNode.children.length==0 ){
+			// 	$.merge(changedNodes, [DragParentNode] );
+			// };
+
+			var postArr = [];
 			$.each(changedNodes, function  (i,v) {
 				v.path = getPath(v);
+				if(!v.hash) v.hash = +new Date()+Math.random();
+				var obj = fileKeys.reduce(function(o, key, idx) {
+				  o[key] = v[key];
+				  return o;
+				}, {});
+				postArr.push(obj);
 			});
-			console.log(changedNodes);
+			console.log(postArr);
+			$.post( host+'/updatefile', {data:postArr} );
 		}
 		//-->
 	</SCRIPT>

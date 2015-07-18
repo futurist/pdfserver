@@ -101,7 +101,7 @@ function saveIntoServer (info) {
 }
 
 
-//sleep(15000);
+// sleep(35000);
 function sleep(sleepTime) {
 for(var start = +new Date; +new Date - start <= sleepTime; ) { }
 }
