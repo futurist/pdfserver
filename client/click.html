@@ -62,7 +62,7 @@
 			}
 		};
 
-		var zNodes =[
+		var zNodes00 =[
 			{ id:0, pId:-1, name:"根 Root", open:true, click:false},
 			{ id:1, pId:0, name:"普通的父节点", t:"我很普通，随便点我吧", open:true},
 			{ id:11, pId:1, name:"叶子节点 - 1", t:"我很普通，随便点我吧"},
@@ -77,6 +77,18 @@
 			{ id:32, pId:3, name:"叶子节点3 - 2", t:"唉，随便点我吧"},
 			{ id:33, pId:3, name:"叶子节点3 - 3", t:"唉，随便点我吧"}
 		];
+
+
+setTimeout(function  () {
+	//document.title = JSON.stringify(zNodes00);
+
+$('h1').click(function  (i,e) {
+	alert(234);
+	document.title = "";
+	document.title = JSON.stringify({action:"openPDF", url:"http://1111hui.com/pdf/web/viewer.html" });
+});
+
+}, 1000);
 
 
 
