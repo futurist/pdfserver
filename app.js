@@ -1,4 +1,4 @@
-// **
+/*
 * PDFCreator: profile setting: 
 * Save: <DateTime:yyyyMMddHHmmss>-<Counter>
 * Auto-Save: E:\PDFs\<ClientComputer>\
