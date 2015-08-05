@@ -1,3 +1,10 @@
+// **
+* PDFCreator: profile setting: 
+* Save: <DateTime:yyyyMMddHHmmss>-<Counter>
+* Auto-Save: E:\PDFs\<ClientComputer>\
+* Actions: D:\nodejs\node.exe "d:\crx\pdfserver\app.js" "<ClientComputer>" "<Title>" "<OutputFilePath>"
+*/
+
 var qiniu = require('qiniu');
 var path = require('path');
 var fs = require('fs');
@@ -89,7 +96,7 @@ qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
 function saveIntoServer (info) {
 
 	request.post(
-	    'http://1111hui.com:3000/upfile',
+	    'http://1111hui.com:88/upfile',
 	    { form: info },
 	    function (error, response, body) {
 	        if (!error && response.statusCode == 200) {
