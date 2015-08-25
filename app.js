@@ -11,6 +11,8 @@ var fs = require('fs');
 
 var request = require('request');
 
+var host = 'http://1111hui.com:88';
+
 var log = require('tracer').console({
     transport : function(data) {
         console.log(data.output);
@@ -24,8 +26,9 @@ var log = require('tracer').console({
 });
 
 
-qiniu.conf.ACCESS_KEY = '2hF3mJ59eoNP-RyqiKKAheQ3_PoZ_Y3ltFpxXP0K';
-qiniu.conf.SECRET_KEY = 'xvZ15BIIgJbKiBySTV3SHrAdPDeGQyGu_qJNbsfB';
+// qiniu.conf.ACCESS_KEY = '';
+// qiniu.conf.SECRET_KEY = '';
+
 
 var formatDate = function(format) {
 	d = new Date();
@@ -45,58 +48,77 @@ var formatDate = function(format) {
 };
 
 
-if(process.argv.length<3) process.exit();
-
-var client = process.argv[2].replace(/\\/g,"").replace(/\//g,"");
-var title = process.argv[3];
-var file = process.argv[4];
-
-title = title.replace('Microsoft', '');
-
-var ext = path.extname(file);
-var saveFile = path.basename(file); //formatDate('yyyymmdd-hhiiss') + Math.random().toString().slice(1,5) + ext;
-
-var responseBody =
-{
-	"key":"$(key)",
-	"hash":"$(hash)",
-	"imageWidth":"$(imageInfo.width)",
-	"imageHeight":"$(imageInfo.height)",
-	type:"$(type)",
-	client:client,
-	title:title,
-	fname:"$(fname)",
-	fsize:"$(fsize)"
-};
-
-var putPolicy = new qiniu.rs.PutPolicy(
-	'bucket01',
-	null,
-	null,
-	null,
-	JSON.stringify( responseBody )
-);
-
-var uptoken = putPolicy.token();
-
-log.log( uptoken,saveFile, file, JSON.stringify(process.argv) );
-
-qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
-  log.log(err, ret);
-
-  ret.person = "yangjm";
-  //ret.path = "/abc/";
-  saveIntoServer(ret);
-
-});
+// if(process.argv.length<3) process.exit();
+// var client = process.argv[2].replace(/\\/g,"").replace(/\//g,"");
+// var title = process.argv[3];
+// var file = process.argv[4];
 
 
 
+/********* Net Socket Part ************/
+// server
+require('net').createServer(function (socket) {
+    //console.log("connected");
+    socket.on('error', function(err){
+        //console.log(err);
+    });
+    socket.on('data', function (data) {
+        if(!data) return;
+        try{
+            data = JSON.parse(data.toString());
+        } catch(e){
+            return console.log('Bad JSON');
+        }
+
+        if(data.length<5) return;
+        data = data.slice(2);
+        console.log(data);
+
+        upfileToQiniu(data[0], data[1], data[2]);
+
+    });
+})
+.listen(81, function(){ console.log('socket ready') });
+
+
+function upfileToQiniu(client, title, file) {
+
+    title = title.replace('Microsoft', '');
+
+    var ext = path.extname(file);
+    var saveFile = path.basename(file); //formatDate('yyyymmdd-hhiiss') + Math.random().toString().slice(1,5) + ext;
+
+    request.post(
+        host+'/getUpToken',
+        function (error, response, body) {
+            if (error || response.statusCode !== 200) {
+                console.log(error);
+                return;
+            }
+
+            var uptoken = body;
+
+            log.log( saveFile, client, title, file, JSON.stringify(process.argv) );
+
+            qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
+              if(err) return console.log('error', err);
+              ret.person = "yangjiming";
+              ret.client = client;
+              ret.title = title;
+              //ret.path = "/abc/";
+              saveIntoServer(ret);
+
+            });
+        }
+    );
+    
+
+}
 
 function saveIntoServer (info) {
 
 	request.post(
-	    'http://1111hui.com:88/upfile',
+	    host+'/upfile',
 	    { form: info },
 	    function (error, response, body) {
 	        if (!error && response.statusCode == 200) {
@@ -109,7 +131,7 @@ function saveIntoServer (info) {
 
 
 // sleep(35000);
-function sleep(sleepTime) {
-for(var start = +new Date; +new Date - start <= sleepTime; ) { }
-}
+// function sleep(sleepTime) {
+// for(var start = +new Date; +new Date - start <= sleepTime; ) { }
+// }
 
