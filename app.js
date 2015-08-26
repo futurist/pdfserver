@@ -1,5 +1,5 @@
 /*
-* PDFCreator: profile setting: 
+* PDFCreator: profile setting:
 * Save: <DateTime:yyyyMMddHHmmss>-<Counter>
 * Auto-Save: E:\PDFs\<ClientComputer>\
 * Actions: D:\nodejs\node.exe "d:\crx\pdfserver\app.js" "<ClientComputer>" "<Title>" "<OutputFilePath>"
@@ -7,11 +7,23 @@
 
 var qiniu = require('qiniu');
 var path = require('path');
+
+var util = require('util');
 var fs = require('fs');
+var url = require('url');
+var http = require('http');
+var exec = require('child_process').exec;
+var spawn = require('child_process').spawn;
 
 var request = require('request');
+var WebSocket = require('ws');
+
+
 
 var host = 'http://1111hui.com:88';
+FILE_HOST = 'http://7xkeim.com1.z0.glb.clouddn.com/';
+
+
 
 var log = require('tracer').console({
     transport : function(data) {
@@ -74,6 +86,7 @@ require('net').createServer(function (socket) {
         data = data.slice(2);
         console.log(data);
 
+        socket.write('ok');
         upfileToQiniu(data[0], data[1], data[2]);
 
     });
@@ -81,7 +94,93 @@ require('net').createServer(function (socket) {
 .listen(81, function(){ console.log('socket ready') });
 
 
-function upfileToQiniu(client, title, file) {
+
+/********* WebSocket Part ************/
+
+// define client Name of this websocket
+
+var clientName = 'printer1';
+
+var ws = new WebSocket('ws://1111hui.com:3000');
+
+ws.on('open', function open() {
+  ws.send( JSON.stringify({ clientName:clientName, clientRole:'printer', clientOrder:1 }) );
+});
+
+ws.on('message', function(data, flags) {
+  try{
+  	data = JSON.parse(data);
+  } catch(e){ return; }
+
+  if(data.clientName!==clientName) return;
+
+  if( data.task == 'generatePDF' ) {
+  	console.log(data);
+  	downloadFile(FILE_HOST + data.key, function(err, file){
+  		if(err) return;
+  		file = path.resolve(file);
+  		var cmd = util.format( '"C:\\Program Files\\PDFCreator\\PDFCreator.exe" /PrintFile="%s"', file );
+
+  		var child = exec(cmd, function(err, stdout, stderr) {
+  		    //if (err) return callback(stderr);
+  		   console.log(err, stdout, stderr);
+  		});
+
+  	});
+  }
+
+});
+
+
+
+function wsSendServer (msg) {
+	ws.send( JSON.stringify(msg) );
+}
+
+
+function downloadFile (file_url, callback) {
+	if(!callback) callback=function(){}
+	// App variables
+	var DOWNLOAD_DIR = 'downloads/';
+
+	// We will be downloading the files to a directory, so make sure it's there
+	// This step is not required if you have manually created the directory
+	var mkdir = 'mkdir ' + DOWNLOAD_DIR;
+	var child = exec(mkdir, function(err, stdout, stderr) {
+	    //if (err) return callback(stderr);
+	    download_file_httpget(file_url);
+	});
+
+	// Function to download file using HTTP.get
+	var download_file_httpget = function(file_url) {
+	var options = {
+	    host: url.parse(file_url).host,
+	    port: 80,
+	    path: url.parse(file_url).pathname
+	};
+
+	var file_name = url.parse(file_url).pathname.split('/').pop();
+	var file = fs.createWriteStream(DOWNLOAD_DIR + file_name);
+
+	http.get(options, function(res) {
+	    res.on('data', function(data) {
+	            file.write(data);
+	        }).on('end', function() {
+	            file.end();
+	            console.log(file_name + ' downloaded to ' + DOWNLOAD_DIR);
+	            callback(null, DOWNLOAD_DIR + file_name);
+	        }).on('error', function() {
+	            file.end();
+	            callback('error');
+	        });
+	    });
+	};
+
+
+}
+
+
+function upfileToQiniu(client, title, file, srcFile) {
 
     title = title.replace('Microsoft', '');
 
@@ -105,13 +204,14 @@ function upfileToQiniu(client, title, file) {
               ret.person = "yangjiming";
               ret.client = client;
               ret.title = title;
+              if(srcFile) ret.srcFile = srcFile;
               //ret.path = "/abc/";
               saveIntoServer(ret);
 
             });
         }
     );
-    
+
 
 }
 

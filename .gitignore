@@ -2,3 +2,4 @@ node_modules/
 *.suo
 bin/
 obj/
+downloads/

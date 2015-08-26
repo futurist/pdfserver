@@ -18,10 +18,10 @@ namespace socketutf8
             if (args.Length < 3)
             {
                 Console.WriteLine("ERROR number of parameters, shouldbe\n\n  socketutf8 ip_string port_number any_string");
-                System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
+                //System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
                 return;
             }
-
+            
             
             string HOST = args[0];
             int PORT = int.Parse(args[1]);
@@ -31,22 +31,7 @@ namespace socketutf8
             JavaScriptSerializer js = new JavaScriptSerializer();
             string DATA = js.Serialize(args);
 
-            // http://stackoverflow.com/questions/13248971/c-sharp-resolve-hostname-to-ip
-            
-            IPHostEntry hostEntry;
 
-            hostEntry= Dns.GetHostEntry(HOST);
-
-            //you might get more than one ip for a hostname since 
-            //DNS supports more than one record
-
-            if (hostEntry.AddressList.Length <= 0) {
-                Console.WriteLine("Cannot resolve ip address of {0}", HOST);
-                Environment.Exit(-1);
-                return;
-            }
-            
-            var IP = hostEntry.AddressList[0];
 
             // http://stackoverflow.com/questions/8773721/how-to-send-a-string-over-a-socket-in-c-sharp
 
@@ -56,8 +41,8 @@ namespace socketutf8
 
             Socket soc = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            //System.Net.IPAddress ipAdd = System.Net.IPAddress.Parse(IP);
-            System.Net.IPAddress ipAdd = IP;
+            System.Net.IPAddress ipAdd = System.Net.IPAddress.Parse(HOST);
+            //System.Net.IPAddress ipAdd = DNS_TO_IP(HOST);
 
             System.Net.IPEndPoint remoteEP = new IPEndPoint(ipAdd, PORT);
 
@@ -66,7 +51,8 @@ namespace socketutf8
                 soc.Connect(remoteEP);
             }
             catch (SocketException ex) {
-                Console.WriteLine("Error connecting host, Msg:{1}", IP.ToString(), ex.Message);
+                Console.WriteLine("Error connecting host, Msg:{1}", ipAdd.ToString(), ex.Message);
+                System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
                 return;
             }
 
@@ -79,24 +65,49 @@ namespace socketutf8
             byte[] byData = System.Text.Encoding.UTF8.GetBytes(DATA);
 
             soc.Send(byData);
-            Console.WriteLine("Successful sent to {0}", IP.ToString());
+            Console.WriteLine("Successful sent to {0}", ipAdd.ToString());
 
 
             /*****************
              * Reading from server
              * **************/
-            //byte[] buffer = new byte[1024];
-            //int iRx = soc.Receive(buffer);
-            //char[] chars = new char[iRx];
+            byte[] buffer = new byte[1024];
+            int iRx = soc.Receive(buffer);
+            char[] chars = new char[iRx];
 
-            //System.Text.Decoder d = System.Text.Encoding.UTF8.GetDecoder();
-            //int charLen = d.GetChars(buffer, 0, iRx, chars, 0);
-            //System.String recv = new System.String(chars);
+            System.Text.Decoder d = System.Text.Encoding.UTF8.GetDecoder();
+            int charLen = d.GetChars(buffer, 0, iRx, chars, 0);
+            System.String recv = new System.String(chars);
 
-            System.Console.ReadLine();
+            Console.WriteLine(recv);
+
+            System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
 
 
 
+        }
+
+        private IPAddress DNS_TO_IP(string HOST)
+        {
+            // http://stackoverflow.com/questions/13248971/c-sharp-resolve-hostname-to-ip
+
+            IPHostEntry hostEntry;
+
+            hostEntry = Dns.GetHostEntry(HOST);
+
+            //you might get more than one ip for a hostname since 
+            //DNS supports more than one record
+
+            if (hostEntry.AddressList.Length <= 0)
+            {
+                Console.WriteLine("Cannot resolve ip address of {0}", HOST);
+                System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
+                Environment.Exit(-1);
+                return null;
+            }
+
+            var IP = hostEntry.AddressList[0];
+            return IP;
         }
     }
 }
