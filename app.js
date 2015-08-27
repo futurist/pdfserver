@@ -18,11 +18,14 @@ var spawn = require('child_process').spawn;
 var request = require('request');
 var WebSocket = require('ws');
 
+var TableParser = require( 'table-parser' );
+var _= require('underscore');
 
-
+var interCheckProc;
 var host = 'http://1111hui.com:88';
 FILE_HOST = 'http://7xkeim.com1.z0.glb.clouddn.com/';
-
+PDFCreatorPath = "C:\\Program Files\\PDFCreator\\PDFCreator.exe";
+PDFReaderPath = "D:\\Program Files\\FoxitReader\\Foxit Reader.exe";
 
 
 var log = require('tracer').console({
@@ -82,8 +85,7 @@ require('net').createServer(function (socket) {
 
         // we get a 'exit' signal from PDFCreator, and get next file to proceed in DownloadQueue
         if(data=='exit') {
-          srcFile = '';
-          startDownload();
+          
           return;
         }
 
@@ -131,36 +133,107 @@ ws.on('message', function(data, flags) {
   if(data.clientName!==clientName) return;
 
   if( data.task == 'generatePDF' ) {
-  	
+
+  // data format : {task, + qiniu data: key, fname, ... }
+    
     DownloadQueue.push(data);
-    startDownload();
+    downloadAndCreatePDF();
 
   }
+  
+  if( data.task == 'printPDF' ) {
+
+  // data format : {task, server, printer, fileKey}
+
+    downloadAndPrint(data.fileKey, data.printer);
+
+  }
+
 
 });
 
 
-function startDownload () {
+
+
+function checkPDFCreator () {
+  exec('tasklist', function(err, stdout, stderr) {
+    var task = TableParser.parse(stdout);
+
+
+    var list = [];
+    task.forEach(function changeTitleToOrder (v) {
+      var i=0, obj = {};
+      _.each(v, function (v2, k2) {
+        obj[i++] = v2;
+      });
+      list.push(obj);
+    });
+
+    //console.log(list);
+    var proc = _.find(list, function(v){ return v[0][0].match(/PDFCreator\.exe/i) } ) ;
+
+    //console.log( proc?proc[1][0] : 0 );
+
+    if( !proc ){
+      srcFile = '';
+      clearInterval(interCheckProc);
+      downloadAndCreatePDF();
+    }
+
+    return proc;
+    if(proc) console.log('find PDFCreator PID', proc[1][0]);
+
+  });
+}
+checkPDFCreator()
+
+function downloadAndCreatePDF () {
     if( srcFile ) return;
 
     var data = DownloadQueue.shift();
     if(!data) return;
 
-    console.log('startDownload', data);
+    console.log('downloadAndCreatePDF', data);
     srcFile = data.key;
 
     downloadFile(FILE_HOST + data.key, function(err, file){
       if(err) return;
       file = path.resolve(file);
-      var cmd = util.format( '"C:\\Program Files\\PDFCreator\\PDFCreator.exe" /PrintFile="%s" ', file );  // optional: /ManagePrintJobs
+      var cmd = util.format( '"%s" /PrintFile="%s" ', PDFCreatorPath, file );  // optional: /ManagePrintJobs
 
       var child = exec(cmd, function(err, stdout, stderr) {
           //if (err) return callback(stderr);
          console.log('exec result', child.pid);
       });
+
+      interCheckProc = setInterval( checkPDFCreator , 300 );
       
     });
 }
+
+function downloadAndPrint (fileKey, printerName) {
+
+    if(!fileKey || !printerName) return;
+
+    console.log('downloadAndPrint', fileKey, printerName);
+    
+    downloadFile(FILE_HOST + fileKey, function(err, file){
+      if(err) return;
+      file = path.resolve(file);
+
+      console.log(file);
+
+      var cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
+      console.log(cmd);
+
+      var child = exec(cmd, function(err, stdout, stderr) {
+          //if (err) return callback(stderr);
+         console.log('print result', child.pid, err);
+      });
+      
+    });
+}
+
 
 
 function wsSendServer (msg) {
