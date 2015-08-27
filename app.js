@@ -76,18 +76,31 @@ require('net').createServer(function (socket) {
     });
     socket.on('data', function (data) {
         if(!data) return;
+
+        data = data.toString();
+        console.log(data);
+
+        // we get a 'exit' signal from PDFCreator, and get next file to proceed in DownloadQueue
+        if(data=='exit') {
+          srcFile = '';
+          startDownload();
+          return;
+        }
+
         try{
-            data = JSON.parse(data.toString());
+            data = JSON.parse(data);
         } catch(e){
             return console.log('Bad JSON');
         }
 
+
+
         if(data.length<5) return;
         data = data.slice(2);
-        console.log(data);
+        
 
         socket.write('ok');
-        upfileToQiniu(data[0], data[1], data[2]);
+        upfileToQiniu(data[0], data[1], data[2], srcFile);
 
     });
 })
@@ -100,6 +113,9 @@ require('net').createServer(function (socket) {
 // define client Name of this websocket
 
 var clientName = 'printer1';
+
+var srcFile;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as srcFile 
+var DownloadQueue = [];
 
 var ws = new WebSocket('ws://1111hui.com:3000');
 
@@ -115,22 +131,36 @@ ws.on('message', function(data, flags) {
   if(data.clientName!==clientName) return;
 
   if( data.task == 'generatePDF' ) {
-  	console.log(data);
-  	downloadFile(FILE_HOST + data.key, function(err, file){
-  		if(err) return;
-  		file = path.resolve(file);
-  		var cmd = util.format( '"C:\\Program Files\\PDFCreator\\PDFCreator.exe" /PrintFile="%s"', file );
+  	
+    DownloadQueue.push(data);
+    startDownload();
 
-  		var child = exec(cmd, function(err, stdout, stderr) {
-  		    //if (err) return callback(stderr);
-  		   console.log(err, stdout, stderr);
-  		});
-
-  	});
   }
 
 });
 
+
+function startDownload () {
+    if( srcFile ) return;
+
+    var data = DownloadQueue.shift();
+    if(!data) return;
+
+    console.log('startDownload', data);
+    srcFile = data.key;
+
+    downloadFile(FILE_HOST + data.key, function(err, file){
+      if(err) return;
+      file = path.resolve(file);
+      var cmd = util.format( '"C:\\Program Files\\PDFCreator\\PDFCreator.exe" /PrintFile="%s" ', file );  // optional: /ManagePrintJobs
+
+      var child = exec(cmd, function(err, stdout, stderr) {
+          //if (err) return callback(stderr);
+         console.log('exec result', child.pid);
+      });
+      
+    });
+}
 
 
 function wsSendServer (msg) {
@@ -197,7 +227,7 @@ function upfileToQiniu(client, title, file, srcFile) {
 
             var uptoken = body;
 
-            log.log( saveFile, client, title, file, JSON.stringify(process.argv) );
+            log.log( saveFile, client, title, file );
 
             qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
               if(err) return console.log('error', err);
