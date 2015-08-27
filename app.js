@@ -185,7 +185,7 @@ function checkPDFCreator () {
 
   });
 }
-checkPDFCreator()
+
 
 function downloadAndCreatePDF () {
     if( srcFile ) return;
@@ -216,7 +216,7 @@ function downloadAndPrint (fileKey, printerName) {
     if(!fileKey || !printerName) return;
 
     console.log('downloadAndPrint', fileKey, printerName);
-    
+
     downloadFile(FILE_HOST + fileKey, function(err, file){
       if(err) return;
       file = path.resolve(file);

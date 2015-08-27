@@ -100,7 +100,7 @@ namespace socketutf8
             }
             catch (SocketException ex) {
                 Console.WriteLine("Error connecting host, Msg:{1}", ipAdd.ToString(), ex.Message);
-                System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
+                //System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
                 return;
             }
 
@@ -129,7 +129,7 @@ namespace socketutf8
 
             Console.WriteLine(recv);
 
-            System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
+            //System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
 
 
         }
@@ -148,7 +148,7 @@ namespace socketutf8
             if (hostEntry.AddressList.Length <= 0)
             {
                 Console.WriteLine("Cannot resolve ip address of {0}", HOST);
-                System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
+                //System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
                 Environment.Exit(-1);
                 return null;
             }
