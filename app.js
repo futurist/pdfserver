@@ -21,6 +21,9 @@ var WebSocket = require('ws');
 var TableParser = require( 'table-parser' );
 var _= require('underscore');
 
+var mkdirp = require('mkdirp');
+
+
 var interCheckProc;
 var host = 'http://1111hui.com:88';
 FILE_HOST = 'http://7xkeim.com1.z0.glb.clouddn.com/';
@@ -85,7 +88,7 @@ require('net').createServer(function (socket) {
 
         // we get a 'exit' signal from PDFCreator, and get next file to proceed in DownloadQueue
         if(data=='exit') {
-          
+
           return;
         }
 
@@ -99,7 +102,7 @@ require('net').createServer(function (socket) {
 
         if(data.length<5) return;
         data = data.slice(2);
-        
+
 
         socket.write('ok');
         upfileToQiniu(data[0], data[1], data[2], srcFile);
@@ -116,7 +119,7 @@ require('net').createServer(function (socket) {
 
 var clientName = 'printer1';
 
-var srcFile;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as srcFile 
+var srcFile;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as srcFile
 var DownloadQueue = [];
 
 var ws = new WebSocket('ws://1111hui.com:3000');
@@ -135,12 +138,12 @@ ws.on('message', function(data, flags) {
   if( data.task == 'generatePDF' ) {
 
   // data format : {task, + qiniu data: key, fname, ... }
-    
+
     DownloadQueue.push(data);
     downloadAndCreatePDF();
 
   }
-  
+
   if( data.task == 'printPDF' ) {
 
   // data format : {task, server, printer, fileKey}
@@ -207,7 +210,7 @@ function downloadAndCreatePDF () {
       });
 
       interCheckProc = setInterval( checkPDFCreator , 300 );
-      
+
     });
 }
 
@@ -230,7 +233,7 @@ function downloadAndPrint (fileKey, printerName) {
           //if (err) return callback(stderr);
          console.log('print result', child.pid, err);
       });
-      
+
     });
 }
 
@@ -248,8 +251,8 @@ function downloadFile (file_url, callback) {
 
 	// We will be downloading the files to a directory, so make sure it's there
 	// This step is not required if you have manually created the directory
-	var mkdir = 'mkdir ' + DOWNLOAD_DIR;
-	var child = exec(mkdir, function(err, stdout, stderr) {
+
+	mkdirp(DOWNLOAD_DIR, function(err) {
 	    //if (err) return callback(stderr);
 	    download_file_httpget(file_url);
 	});
