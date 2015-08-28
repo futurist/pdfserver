@@ -105,7 +105,7 @@ require('net').createServer(function (socket) {
 
 
         socket.write('ok');
-        upfileToQiniu(data[0], data[1], data[2], srcFile);
+        upfileToQiniu(data[0], data[1], data[2], curData);
 
     });
 })
@@ -119,7 +119,7 @@ require('net').createServer(function (socket) {
 
 var clientName = 'printer1';
 
-var srcFile;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as srcFile
+var curData;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as curData
 var DownloadQueue = [];
 
 var ws = new WebSocket('ws://1111hui.com:3000');
@@ -138,7 +138,6 @@ ws.on('message', function(data, flags) {
   if( data.task == 'generatePDF' ) {
 
   // data format : {task, + qiniu data: key, fname, ... }
-
     DownloadQueue.push(data);
     downloadAndCreatePDF();
 
@@ -178,7 +177,7 @@ function checkPDFCreator () {
     //console.log( proc?proc[1][0] : 0 );
 
     if( !proc ){
-      srcFile = '';
+      curData = '';
       clearInterval(interCheckProc);
       downloadAndCreatePDF();
     }
@@ -191,13 +190,13 @@ function checkPDFCreator () {
 
 
 function downloadAndCreatePDF () {
-    if( srcFile ) return;
+    if( curData ) return;
 
     var data = DownloadQueue.shift();
     if(!data) return;
 
     console.log('downloadAndCreatePDF', data);
-    srcFile = data.key;
+    curData = data;
 
     downloadFile(FILE_HOST + data.key, function(err, file){
       if(err) return;
@@ -286,7 +285,7 @@ function downloadFile (file_url, callback) {
 }
 
 
-function upfileToQiniu(client, title, file, srcFile) {
+function upfileToQiniu(client, title, file, curData) {
 
     title = title.replace('Microsoft', '');
 
@@ -307,10 +306,11 @@ function upfileToQiniu(client, title, file, srcFile) {
 
             qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
               if(err) return console.log('error', err);
-              ret.person = "yangjiming";
-              ret.client = client;
-              ret.title = title;
-              if(srcFile) ret.srcFile = srcFile;
+              ret.person = curData.person;
+              ret.client = curData.client;
+              ret.title = curData.title+'.pdf';
+              ret.path = curData.path;
+              if(curData) ret.srcFile = curData.key;
               //ret.path = "/abc/";
               saveIntoServer(ret);
 
