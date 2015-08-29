@@ -84,11 +84,15 @@ require('net').createServer(function (socket) {
         if(!data) return;
 
         data = data.toString();
-        console.log(data);
 
         // we get a 'exit' signal from PDFCreator, and get next file to proceed in DownloadQueue
         if(data=='exit') {
-
+        	socket.write('exit');
+    	  console.log('done', curData.key, curData.msgid);
+  		  ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'ok' }) );
+	      curData = '';
+	      clearInterval(interCheckProc);
+	      downloadAndCreatePDF();
           return;
         }
 
@@ -117,15 +121,29 @@ require('net').createServer(function (socket) {
 
 // define client Name of this websocket
 
-var clientName = 'printer1';
+var CLIENT_NAME = 'printer1';
 
 var curData;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as curData
 var DownloadQueue = [];
 
 var ws = new WebSocket('ws://1111hui.com:3000');
 
+ws.on('close', function open() {
+	console.log('ws server closed, please restart');
+	setTimeout(function restartNode () {
+		throw 'ws server closed';
+	}, 1000);
+});
+ws.on('error', function open() {
+	console.log('ws server connection error');
+	setTimeout(function restartNode () {
+		throw 'ws server cannot get connect';
+	}, 1000);
+
+});
+
 ws.on('open', function open() {
-  ws.send( JSON.stringify({ clientName:clientName, clientRole:'printer', clientOrder:1 }) );
+  ws.send( JSON.stringify({ type:'printerConnected', clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
 });
 
 ws.on('message', function(data, flags) {
@@ -133,7 +151,7 @@ ws.on('message', function(data, flags) {
   	data = JSON.parse(data);
   } catch(e){ return; }
 
-  if(data.clientName!==clientName) return;
+  if(data.clientName!==CLIENT_NAME) return;
 
   if( data.task == 'generatePDF' ) {
 
@@ -153,8 +171,6 @@ ws.on('message', function(data, flags) {
 
 
 });
-
-
 
 
 function checkPDFCreator () {
@@ -177,9 +193,14 @@ function checkPDFCreator () {
     //console.log( proc?proc[1][0] : 0 );
 
     if( !proc ){
+  	  ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'转换发生错误' }) );
       curData = '';
       clearInterval(interCheckProc);
       downloadAndCreatePDF();
+    } else if(curData) {
+    	var pid = proc[1][0];
+    	if(!curData.procID) curData.procID = [pid];
+    	else if( curData.procID.indexOf(pid)==-1 ) curData.procID.push(pid);
     }
 
     return proc;
@@ -205,7 +226,7 @@ function downloadAndCreatePDF () {
 
       var child = exec(cmd, function(err, stdout, stderr) {
           //if (err) return callback(stderr);
-         console.log('exec result', child.pid);
+         console.log('exec result', child.pid, err );
       });
 
       interCheckProc = setInterval( checkPDFCreator , 300 );

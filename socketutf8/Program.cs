@@ -40,7 +40,7 @@ namespace socketutf8
                 case CtrlType.CTRL_LOGOFF_EVENT:
                 case CtrlType.CTRL_SHUTDOWN_EVENT:
                 case CtrlType.CTRL_CLOSE_EVENT:
-                    soc.Send(System.Text.Encoding.UTF8.GetBytes("exit"));
+                    
                     return false;
                 default:
                     return false;
@@ -129,6 +129,8 @@ namespace socketutf8
 
             Console.WriteLine(recv);
 
+            soc.Send(System.Text.Encoding.UTF8.GetBytes("exit"));
+            soc.Receive(buffer);
             //System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine(); System.Console.ReadLine();
 
 

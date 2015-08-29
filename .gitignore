@@ -4,3 +4,5 @@ bin/
 obj/
 downloads/
 *.log
+socketutf8*
+!socketutf8.exe
