@@ -143,7 +143,7 @@ ws.on('error', function open() {
 });
 
 ws.on('open', function open() {
-  ws.send( JSON.stringify({ type:'printerConnected', clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
+  ws.send( JSON.stringify({ type:'clientConnected', clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
 });
 
 ws.on('message', function(data, flags) {
