@@ -163,9 +163,9 @@ ws.on('message', function(data, flags) {
 
   if( data.task == 'printPDF' ) {
 
-  // data format : {task, server, printer, fileKey}
+  // data format : {task, server, printer, fileKey, shareID, person}
 
-    downloadAndPrint(data.fileKey, data.printer);
+    downloadAndPrint(data.fileKey, data.printer, data.shareID, data.person);
 
   }
 
@@ -234,13 +234,16 @@ function downloadAndCreatePDF () {
     });
 }
 
-function downloadAndPrint (fileKey, printerName) {
+function downloadAndPrint (fileKey, printerName, shareID, person) {
 
     if(!fileKey || !printerName) return;
 
-    console.log('downloadAndPrint', fileKey, printerName);
+    var downloadUrl = host+'/downloadFile2/'+ fileKey +'?key='+ fileKey +'&shareID='+shareID+'&person='+person;
 
-    downloadFile(FILE_HOST + fileKey, function(err, file){
+    console.log('downloadAndPrint', fileKey, shareID, printerName);
+
+    //downloadFile(FILE_HOST + fileKey, function(err, file){
+    downloadFile( downloadUrl, function(err, file){
       if(err) return;
       file = path.resolve(file);
 
@@ -251,7 +254,7 @@ function downloadAndPrint (fileKey, printerName) {
 
       var child = exec(cmd, function(err, stdout, stderr) {
           //if (err) return callback(stderr);
-         console.log('print result', child.pid, err);
+         console.log('print result', child.pid, err, stdout, stderr);
       });
 
     });
@@ -287,8 +290,9 @@ function downloadFile (file_url, callback) {
 
 	var file_name = url.parse(file_url).pathname.split('/').pop();
 	var file = fs.createWriteStream(DOWNLOAD_DIR + file_name);
+  console.log(file_url);
 
-	http.get(options, function(res) {
+	http.get(file_url, function(res) {
 	    res.on('data', function(data) {
 	            file.write(data);
 	        }).on('end', function() {
