@@ -165,7 +165,7 @@ ws.on('message', function(data, flags) {
 
   // data format : {task, server, printer, fileKey, shareID, person}
 
-    downloadAndPrint(data.fileKey, data.printer, data.shareID, data.person);
+    downloadAndPrint(data.fileKey, data.printer, data.shareID, data.person, data);
 
   }
 
@@ -227,6 +227,7 @@ function downloadAndCreatePDF () {
       var child = exec(cmd, function(err, stdout, stderr) {
           //if (err) return callback(stderr);
          console.log('exec result', child.pid, err );
+
       });
 
       interCheckProc = setInterval( checkPDFCreator , 300 );
@@ -234,7 +235,7 @@ function downloadAndCreatePDF () {
     });
 }
 
-function downloadAndPrint (fileKey, printerName, shareID, person) {
+function downloadAndPrint (fileKey, printerName, shareID, person, data) {
 
     if(!fileKey || !printerName) return;
 
@@ -250,11 +251,20 @@ function downloadAndPrint (fileKey, printerName, shareID, person) {
       console.log(file);
 
       var cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
+      
+      cmd = util.format( '"%s" -silent -print-to "%s" "%s"', "c:\\Program Files\\SumatraPDF\\SumatraPDF.exe", printerName, file );  
+      //using sumatrapdf : https://github.com/sumatrapdfreader/sumatrapdf
+      
+      // cmd = util.format( '"%s" /N /T "%s" "%s"', "d:\\Program Files\\Adobe\\Reader 9.0\\Reader\\AcroRd32.exe", file, printerName );  //using Adobe AcrobatReader
+
       console.log(cmd);
 
       var child = exec(cmd, function(err, stdout, stderr) {
           //if (err) return callback(stderr);
          console.log('print result', child.pid, err, stdout, stderr);
+
+        ws.send( JSON.stringify({ type:'printerMsg', msgid:data.msgid, data:data, printerName:CLIENT_NAME, errMsg: err }) );
+
       });
 
     });
