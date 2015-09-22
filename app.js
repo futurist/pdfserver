@@ -2,8 +2,10 @@
 * PDFCreator: profile setting:
 * Save: <DateTime:yyyyMMddHHmmss>-<Counter>
 * Auto-Save: E:\PDFs\<ClientComputer>\
-* Actions: D:\nodejs\node.exe "d:\crx\pdfserver\app.js" "<ClientComputer>" "<Title>" "<OutputFilePath>"
+* Actions: D:\crx\pdfserver\socketutf8.exe 127.0.0.1 81 "<ClientComputer>" "<Title>" "<OutputFilePath>" "<JobID>"
+* Forever:  forever start -m 99 -o app-out.log -e app-err.log -l app-forever.log -a app.js
 */
+var CLIENT_NAME = 'printer1';
 
 var qiniu = require('qiniu');
 var path = require('path');
@@ -85,24 +87,28 @@ require('net').createServer(function (socket) {
 
         data = data.toString();
 
+        console.log(data);
         // we get a 'exit' signal from PDFCreator, and get next file to proceed in DownloadQueue
         if(data=='exit') {
         	socket.write('exit');
-    	  console.log('done', curData.key, curData.msgid);
-  		  ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'ok' }) );
-	      curData = '';
-	      clearInterval(interCheckProc);
-	      downloadAndCreatePDF();
-          return;
+        	if(curData){
+
+        		console.log('done', curData.msgid);
+	  		  ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'ok' }) );
+		      curData = '';
+		      clearInterval(interCheckProc);
+		      downloadAndCreatePDF();
+
+        	}
+	        return;
+
         }
 
         try{
             data = JSON.parse(data);
         } catch(e){
-            return console.log('Bad JSON');
+            return console.log(data, 'Bad JSON');
         }
-
-
 
         if(data.length<5) return;
         data = data.slice(2);
@@ -121,7 +127,6 @@ require('net').createServer(function (socket) {
 
 // define client Name of this websocket
 
-var CLIENT_NAME = 'printer1';
 
 var curData;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as curData
 var DownloadQueue = [];
@@ -219,7 +224,7 @@ function downloadAndCreatePDF () {
     console.log('downloadAndCreatePDF', data);
     curData = data;
 
-    downloadFile(FILE_HOST + data.key, function(err, file){
+    downloadFile(FILE_HOST + encodeURIComponent(data.key), function(err, file){
       if(err) return;
       file = path.resolve(file);
       var cmd = util.format( '"%s" /PrintFile="%s" ', PDFCreatorPath, file );  // optional: /ManagePrintJobs
@@ -239,7 +244,7 @@ function downloadAndPrint (fileKey, printerName, shareID, person, data) {
 
     if(!fileKey || !printerName) return;
 
-    var downloadUrl = host+'/downloadFile2/'+ fileKey +'?key='+ fileKey +'&shareID='+shareID+'&person='+person;
+    var downloadUrl = host+'/downloadFile2/'+  encodeURIComponent(fileKey) +'?key='+ encodeURIComponent(fileKey) +'&shareID='+shareID+'&person='+person;
 
     console.log('downloadAndPrint', fileKey, shareID, printerName);
 
@@ -341,12 +346,18 @@ function upfileToQiniu(client, title, file, curData) {
 
             qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
               if(err) return console.log('error', err);
-              ret.person = curData.person;
-              ret.client = curData.client;
-              ret.title = curData.title+'.pdf';
-              ret.path = curData.path;
-              if(curData) ret.srcFile = curData.key;
-              //ret.path = "/abc/";
+
+              if(curData){
+	              ret.person = curData.person;
+	              ret.client = curData.client;
+	              ret.title = curData.title+'.pdf';
+	              ret.path = curData.path;
+	              if(curData) ret.srcFile = curData.key;
+	              //ret.path = "/abc/";
+	          } else {
+	          	ret.client = client.toLowerCase();
+	          	ret.title = title;
+	          }
               saveIntoServer(ret);
 
             });
