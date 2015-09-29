@@ -3,7 +3,7 @@
 * Save: <DateTime:yyyyMMddHHmmss>-<Counter>
 * Auto-Save: E:\PDFs\<ClientComputer>\
 * Actions: D:\crx\pdfserver\socketutf8.exe 127.0.0.1 81 "<ClientComputer>" "<Title>" "<OutputFilePath>" "<JobID>"
-* Forever:  forever start -m 99 -o app-out.log -e app-err.log -l app-forever.log -a app.js
+* Forever:  forever start -o app-out.log -e app-err.log -l app-forever.log -a app.js
 */
 var CLIENT_NAME = 'printer1';
 
@@ -72,6 +72,39 @@ var formatDate = function(format) {
 // var client = process.argv[2].replace(/\\/g,"").replace(/\//g,"");
 // var title = process.argv[3];
 // var file = process.argv[4];
+
+
+function updateHostName () {
+
+  // http://stackoverflow.com/questions/3653065/get-local-ip-address-in-node-js
+  var os = require('os');
+  var HOSTNAME = os.hostname();
+  var ifaces = os.networkInterfaces();
+
+  var IPS = [];
+
+  Object.keys(ifaces).forEach(function (ifname) {
+    var alias = 0;
+
+    ifaces[ifname].forEach(function (iface) {
+      if ('IPv4' !== iface.family || iface.internal !== false) {
+        return;
+      }
+
+      if (alias >= 1) {
+        IPS.push({ifname:ifname, address:iface.address});
+      } else {
+        IPS.push({ifname:ifname, address:iface.address});
+      }
+    });
+  });
+  // remain only LAN IPS
+  IPS = IPS.filter(function(v){ return v.address.indexOf('192.')>-1||v.address.indexOf('172.')>-1||v.address.indexOf('10.')>-1 });
+
+  global.IP = IPS.shift();
+  global.HOSTNAME = HOSTNAME;
+
+}
 
 
 
@@ -148,7 +181,8 @@ ws.on('error', function open() {
 });
 
 ws.on('open', function open() {
-  ws.send( JSON.stringify({ type:'clientConnected', clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
+  updateHostName();
+  ws.send( JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
 });
 
 ws.on('message', function(data, flags) {
@@ -231,7 +265,7 @@ function downloadAndCreatePDF () {
 
       var child = exec(cmd, function(err, stdout, stderr) {
           //if (err) return callback(stderr);
-         console.log('exec result', child.pid, err );
+         console.log('exec result', child.pid, err, stdout, stderr );
 
       });
 
