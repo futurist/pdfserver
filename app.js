@@ -101,7 +101,10 @@ function updateHostName () {
   // remain only LAN IPS
   IPS = IPS.filter(function(v){ return v.address.indexOf('192.')>-1||v.address.indexOf('172.')>-1||v.address.indexOf('10.')>-1 });
 
-  global.IP = IPS.shift();
+  var ip = IPS.shift();
+  if(!ip) return;
+
+  global.IP = ip.address;
   global.HOSTNAME = HOSTNAME;
 
 }
@@ -155,6 +158,75 @@ require('net').createServer(function (socket) {
 .listen(81, function(){ console.log('socket ready') });
 
 
+/********* Http Server Part ************/
+
+http.createServer(function(clientReq, res) {
+	// clientReq keys:  
+	// [ '_readableState', 'readable', 'domain', '_events', '_maxListeners', 'socket', 'connection', 'httpVersion', 'complete', 'headers', 'trailers', '_pendings', '_pendingIndex', 'url', 'method', 'statusCode', 'client', '_consuming', '_dumped', 'httpVersionMajor', 'httpVersionMinor', 'upgrade' ]
+
+	function sendResponse (title, body) {
+		res.writeHead(200, {"Content-Type": "text/html"});
+        res.write('<html><head><meta charset="utf-8"><title>'+ title +'</title></head>\
+        	<body>'+ body +'</body>\
+        	</html>');
+        res.end();
+	}
+
+	function root () {
+		sendResponse('更新客户端姓名', '<form action="http://'+ global.IP +'/updateUser">ID:<input type=text name=userName placeholder="在此输入您的ID"><input type="submit" value="更新"></form>' );
+	}
+
+	function updateUser () {
+		var userName = req.query.userName;
+		exec( 'nbtstat -A '+clientIP, function  (err, stdout, stderr) {
+			var stat = TableParser.parse(stdout);
+			var clientName = '';
+			
+			_.find(stat, function  (v, i) {
+				var val = _.values(v).shift();
+				if ( val[3]+'' == 'UNIQUE'){
+					clientName = val[1];
+					return true;
+				}
+			});
+
+			if(!clientName) return sendResponse('更新失败', '<p>无法获取计算机名</p>');;
+
+			request.post(
+			    host+'/updateHost',
+			    {form: {person:userName, hostname:clientName, ip:clientIP } },
+			    function (err, response, body) {
+			    	console.log('Update Client Info:', {person:userName, hostname:clientName, ip:clientIP } );
+			    	if(body=='OK'){
+			    		sendResponse('更新成功', '<p>更新成功</p>');
+			    	} else {
+			    		sendResponse('更新失败', '<p>未找此用户</p>');
+			    	}
+			    }
+			);
+
+		} );
+
+	}
+
+
+	var clientIP = clientReq.headers['x-forwarded-for'] || clientReq.connection.remoteAddress;
+	var req = url.parse( clientReq.url, true );
+
+	switch(req.pathname){
+		case '/':
+			root();
+			break;
+		case '/updateUser':
+			updateUser();
+			break;
+
+	}
+
+
+
+}).listen(80);
+
 
 /********* WebSocket Part ************/
 
@@ -182,6 +254,7 @@ ws.on('error', function open() {
 
 ws.on('open', function open() {
   updateHostName();
+  console.log( global.IP );
   ws.send( JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
 });
 
@@ -376,10 +449,13 @@ function upfileToQiniu(client, title, file, curData) {
 
             var uptoken = body;
 
-            log.log( saveFile, client, title, file );
 
             qiniu.io.putFile(uptoken, saveFile, file, null, function(err, ret) {
               if(err) return console.log('error', err);
+
+              // ret = _.mapObject(ret, function  (v,i) {
+              // 	return safeEval(v);
+              // });
 
               if(curData){
 	              ret.person = curData.person;
@@ -392,6 +468,8 @@ function upfileToQiniu(client, title, file, curData) {
 	          	ret.client = client.toLowerCase();
 	          	ret.title = title;
 	          }
+
+
               saveIntoServer(ret);
 
             });
@@ -401,14 +479,28 @@ function upfileToQiniu(client, title, file, curData) {
 
 }
 
+function safeEval (str) {
+  try{
+    var ret = JSON.parse(str);
+  }catch(e){
+    ret = str
+  }
+  return /object/i.test(typeof ret) ? (ret===null?null:str) : ret;
+}
+
+
 function saveIntoServer (info) {
 
 	request.post(
 	    host+'/upfile',
-	    { form: info },
-	    function (error, response, body) {
-	        if (!error && response.statusCode == 200) {
-	            console.log(body)
+	    {form:info},
+	    function (err, response, body) {
+
+	        if (response.statusCode == 404) {
+	        	console.log('no client found:', info.client );
+	        }
+	        if (!err && response.statusCode == 200) {
+	        	console.log(body);
 	        }
 	    }
 	);
