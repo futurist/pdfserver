@@ -179,16 +179,16 @@ http.createServer(function(clientReq, res) {
 	function updateUser () {
 		var userName = req.query.userName;
 		exec( 'nbtstat -A '+clientIP, function  (err, stdout, stderr) {
-			var stat = TableParser.parse(stdout);
+			// var stat = TableParser.parse(stdout);
+      var stat = stdout.split(/\r\n/);
 			var clientName = '';
 			
-			_.find(stat, function  (v, i) {
-				var val = _.values(v).shift();
-				if ( val[3]+'' == 'UNIQUE'){
-					clientName = val[1];
-					return true;
-				}
-			});
+      _.find(stat, function  (v, i) {
+        if( v.match(/UNIQUE\s+Registered/) ){
+          clientName = v.replace(/^\s+/,'').split(/\s+/).shift();
+          return true;
+        }
+      });
 
 			if(!clientName) return sendResponse('更新失败', '<p>无法获取计算机名</p>');;
 
