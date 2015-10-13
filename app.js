@@ -3,12 +3,16 @@
 * Save: <DateTime:yyyyMMddHHmmss>-<Counter>
 * Auto-Save: E:\PDFs\<ClientComputer>\
 * Actions: D:\crx\pdfserver\socketutf8.exe 127.0.0.1 81 "<ClientComputer>" "<Title>" "<OutputFilePath>" "<JobID>"
-* Forever:  forever start -o app-out.log -e app-err.log -l app-forever.log -a app.js
+* Forever:  forever start -o app-out.log -e app-err.log -l app-forever.log -a --minUptime 2000 --spinSleepTime 2000 -v app.js
+* supervisor -i . -n success app.js
 */
+
+
 var CLIENT_NAME = 'printer1';
 
 var qiniu = require('qiniu');
 var path = require('path');
+var moment = require('moment');
 
 var util = require('util');
 var fs = require('fs');
@@ -30,7 +34,8 @@ var interCheckProc;
 var host = 'http://1111hui.com:88';
 FILE_HOST = 'http://7xkeim.com1.z0.glb.clouddn.com/';
 PDFCreatorPath = "C:\\Program Files\\PDFCreator\\PDFCreator.exe";
-PDFReaderPath = "D:\\Program Files\\FoxitReader\\Foxit Reader.exe";
+// PDFReaderPath = "D:\\Program Files\\FoxitReader\\Foxit Reader.exe";
+PDFReaderPath = "c:\\Program Files\\SumatraPDF\\SumatraPDF.exe";
 
 
 var log = require('tracer').console({
@@ -45,6 +50,21 @@ var log = require('tracer').console({
     }
 });
 
+// https://medium.com/@garychambers108/better-logging-in-node-js-b3cc6fd0dafd
+function replaceConsole () {
+  ["log", "warn", "error"].forEach(function(method) {
+      var oldMethod = console[method].bind(console);
+      console[method] = function() {
+          var arg=[moment().format('YYYY-MM-DD HH:mm:ss.SSS')];
+          // var arg=[new Date().toISOString()];
+          for(var i in arguments){
+            arg.push(arguments[i]);
+          }
+          oldMethod.apply(console, arg );
+      };
+  });
+}
+replaceConsole();
 
 // qiniu.conf.ACCESS_KEY = '';
 // qiniu.conf.SECRET_KEY = '';
@@ -116,7 +136,7 @@ function updateHostName () {
 require('net').createServer(function (socket) {
     //console.log("connected");
     socket.on('error', function(err){
-        //console.log(err);
+        console.log(err);
     });
     socket.on('data', function (data) {
         if(!data) return;
@@ -179,6 +199,7 @@ http.createServer(function(clientReq, res) {
 	function updateUser () {
 		var userName = req.query.userName;
 		exec( 'nbtstat -A '+clientIP, function  (err, stdout, stderr) {
+			if(err) console.log(err, stderr);
 			// var stat = TableParser.parse(stdout);
       var stat = stdout.split(/\r\n/);
 			var clientName = '';
@@ -196,6 +217,7 @@ http.createServer(function(clientReq, res) {
 			    host+'/updateHost',
 			    {form: {person:userName, hostname:clientName, ip:clientIP } },
 			    function (err, response, body) {
+			    	if(err) console.log(err);
 			    	console.log('Update Client Info:', {person:userName, hostname:clientName, ip:clientIP } );
 			    	if(body=='OK'){
 			    		sendResponse('更新成功', '<p>更新成功</p>');
@@ -238,21 +260,21 @@ var DownloadQueue = [];
 
 var ws = new WebSocket('ws://1111hui.com:3000');
 
-ws.on('close', function open() {
+ws.on('close', function () {
 	console.log('ws server closed, please restart');
 	setTimeout(function restartNode () {
 		throw 'ws server closed';
 	}, 1000);
 });
-ws.on('error', function open() {
-	console.log('ws server connection error');
+ws.on('error', function (err) {
+	console.log('ws server connection error', err);
 	setTimeout(function restartNode () {
 		throw 'ws server cannot get connect';
 	}, 1000);
 
 });
 
-ws.on('open', function open() {
+ws.on('open', function () {
   updateHostName();
   console.log( global.IP );
   ws.send( JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
@@ -287,6 +309,8 @@ ws.on('message', function(data, flags) {
 
 function checkPDFCreator () {
   exec('tasklist', function(err, stdout, stderr) {
+  	if(err) console.log(err);
+
     var task = TableParser.parse(stdout);
 
 
@@ -332,14 +356,13 @@ function downloadAndCreatePDF () {
     curData = data;
 
     downloadFile(FILE_HOST + encodeURIComponent(data.key), function(err, file){
-      if(err) return;
+      if(err) return console.log(err);
+
       file = path.resolve(file);
       var cmd = util.format( '"%s" /PrintFile="%s" ', PDFCreatorPath, file );  // optional: /ManagePrintJobs
 
       var child = exec(cmd, function(err, stdout, stderr) {
-          //if (err) return callback(stderr);
-         console.log('exec result', child.pid, err, stdout, stderr );
-
+         if (err) return console.log('exec result', child.pid, err, stdout, stderr );
       });
 
       interCheckProc = setInterval( checkPDFCreator , 300 );
@@ -357,14 +380,15 @@ function downloadAndPrint (fileKey, printerName, shareID, person, data) {
 
     //downloadFile(FILE_HOST + fileKey, function(err, file){
     downloadFile( downloadUrl, function(err, file){
-      if(err) return;
+      if(err) return console.log(err);
+
       file = path.resolve(file);
 
       console.log(file);
 
       var cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
       
-      cmd = util.format( '"%s" -silent -print-to "%s" "%s"', "c:\\Program Files\\SumatraPDF\\SumatraPDF.exe", printerName, file );  
+      cmd = util.format( '"%s" -silent -print-to "%s" "%s"', PDFReaderPath, printerName, file );  
       //using sumatrapdf : https://github.com/sumatrapdfreader/sumatrapdf
       
       // cmd = util.format( '"%s" /N /T "%s" "%s"', "d:\\Program Files\\Adobe\\Reader 9.0\\Reader\\AcroRd32.exe", file, printerName );  //using Adobe AcrobatReader
@@ -372,8 +396,10 @@ function downloadAndPrint (fileKey, printerName, shareID, person, data) {
       console.log(cmd);
 
       var child = exec(cmd, function(err, stdout, stderr) {
-          //if (err) return callback(stderr);
-         console.log('print result', child.pid, err, stdout, stderr);
+        if (err){
+          	// return callback(stderr);
+         	console.log('print result', child.pid, err, stdout, stderr);
+        }
 
         ws.send( JSON.stringify({ type:'printerMsg', msgid:data.msgid, data:data, printerName:CLIENT_NAME, errMsg: err }) );
 
@@ -421,9 +447,9 @@ function downloadFile (file_url, callback) {
 	            file.end();
 	            console.log(file_name + ' downloaded to ' + DOWNLOAD_DIR);
 	            callback(null, DOWNLOAD_DIR + file_name);
-	        }).on('error', function() {
+	        }).on('error', function(err) {
 	            file.end();
-	            callback('error');
+	            callback(err);
 	        });
 	    });
 	};

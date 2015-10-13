@@ -1,0 +1,11 @@
+{
+    "uid": "app",
+    "minUptime": 2000,
+    "spinSleepTime": 2000,
+    "logFile":"applog.txt",
+    "errFile":"apperr.txt",
+    "append": true,
+    "watch": true,
+    "script": "app.js"
+}
+

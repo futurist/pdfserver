@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "mkdirp": "^0.5.1",
+    "moment": "^2.10.6",
     "qiniu": "~6.1.1",
     "request": "^2.5",
     "table-parser": "0.0.3",
