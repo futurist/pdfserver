@@ -1,18 +1,27 @@
 /*
 * PDFCreator: profile setting:
 * Save: <DateTime:yyyyMMddHHmmss>-<Counter>
-* Auto-Save: E:\PDFs\<ClientComputer>\
-* Actions: D:\crx\pdfserver\socketutf8.exe 127.0.0.1 81 "<ClientComputer>" "<Title>" "<OutputFilePath>" "<JobID>"
+* Auto-Save: E:\PDFs\
+* Actions: D:\crx\pdfserver\socketutf8.exe 127.0.0.1 81 "<ClientComputer>" "<Title>" "<OutputFileNames>" "<JobID>"
 * Forever:  forever start -o app-out.log -e app-err.log -l app-forever.log -a --minUptime 2000 --spinSleepTime 2000 -v app.js
 * supervisor -i . -n success app.js
 */
 
 
 var CLIENT_NAME = 'printer1';
+var HTTP_PORT = 88;
+var PDF_DIR = "E:\\PDFs\\";
+
+var host = 'http://1111hui.com:88';
+FILE_HOST = 'http://7xkeim.com1.z0.glb.clouddn.com/';
+PDFCreatorPath = "C:\\Program Files\\PDFCreator\\PDFCreator.exe";
+PDFReaderPath2 = "D:\\Program Files\\FoxitReader\\Foxit Reader.exe";
+PDFReaderPath = "c:\\Program Files\\SumatraPDF\\SumatraPDF.exe";
+
+
 
 var qiniu = require('qiniu');
 var path = require('path');
-var moment = require('moment');
 
 var util = require('util');
 var fs = require('fs');
@@ -31,12 +40,6 @@ var mkdirp = require('mkdirp');
 
 
 var interCheckProc;
-var host = 'http://1111hui.com:88';
-FILE_HOST = 'http://7xkeim.com1.z0.glb.clouddn.com/';
-PDFCreatorPath = "C:\\Program Files\\PDFCreator\\PDFCreator.exe";
-// PDFReaderPath = "D:\\Program Files\\FoxitReader\\Foxit Reader.exe";
-PDFReaderPath = "c:\\Program Files\\SumatraPDF\\SumatraPDF.exe";
-
 
 var log = require('tracer').console({
     transport : function(data) {
@@ -50,21 +53,6 @@ var log = require('tracer').console({
     }
 });
 
-// https://medium.com/@garychambers108/better-logging-in-node-js-b3cc6fd0dafd
-function replaceConsole () {
-  ["log", "warn", "error"].forEach(function(method) {
-      var oldMethod = console[method].bind(console);
-      console[method] = function() {
-          var arg=[moment().format('YYYY-MM-DD HH:mm:ss.SSS')];
-          // var arg=[new Date().toISOString()];
-          for(var i in arguments){
-            arg.push(arguments[i]);
-          }
-          oldMethod.apply(console, arg );
-      };
-  });
-}
-replaceConsole();
 
 // qiniu.conf.ACCESS_KEY = '';
 // qiniu.conf.SECRET_KEY = '';
@@ -171,7 +159,7 @@ require('net').createServer(function (socket) {
 
 
         socket.write('ok');
-        upfileToQiniu(data[0], data[1], data[2], curData);
+        upfileToQiniu(data[0], data[1], PDF_DIR+data[2], curData);
 
     });
 })
@@ -179,6 +167,7 @@ require('net').createServer(function (socket) {
 
 
 /********* Http Server Part ************/
+
 
 http.createServer(function(clientReq, res) {
 	// clientReq keys:  
@@ -193,7 +182,7 @@ http.createServer(function(clientReq, res) {
 	}
 
 	function root () {
-		sendResponse('更新客户端姓名', '<form action="http://'+ global.IP +'/updateUser">ID:<input type=text name=userName placeholder="在此输入您的ID"><input type="submit" value="更新"></form>' );
+		sendResponse('更新客户端姓名', '<form action="http://'+ global.IP + ':'+HTTP_PORT +'/updateUser">ID:<input type=text name=userName placeholder="在此输入您的ID"><input type="submit" value="更新"></form>' );
 	}
 
 	function updateUser () {
@@ -207,6 +196,7 @@ http.createServer(function(clientReq, res) {
       _.find(stat, function  (v, i) {
         if( v.match(/UNIQUE\s+Registered/) ){
           clientName = v.replace(/^\s+/,'').split(/\s+/).shift();
+		  clientName = clientName.replace(/\s*<.*>/,'');
           return true;
         }
       });
@@ -220,9 +210,9 @@ http.createServer(function(clientReq, res) {
 			    	if(err) console.log(err);
 			    	console.log('Update Client Info:', {person:userName, hostname:clientName, ip:clientIP } );
 			    	if(body=='OK'){
-			    		sendResponse('更新成功', '<p>更新成功</p>');
+			    		sendResponse('更新成功', '<p>更新成功</p><p>'+ userName +'</p><p>'+ clientName +'</p><p>'+ clientIP +'</p>');
 			    	} else {
-			    		sendResponse('更新失败', '<p>未找此用户</p>');
+			    		sendResponse('更新失败', '<p>未找此用户</p><p>'+ userName +'</p><p>'+ clientName +'</p><p>'+ clientIP +'</p>');
 			    	}
 			    }
 			);
@@ -247,7 +237,7 @@ http.createServer(function(clientReq, res) {
 
 
 
-}).listen(80);
+}).listen(HTTP_PORT);
 
 
 /********* WebSocket Part ************/
@@ -257,6 +247,7 @@ http.createServer(function(clientReq, res) {
 
 var curData;  // This global var store the src EXCEL/WORD etc file then pass to QiNiu as curData
 var DownloadQueue = [];
+var clientUpMsg;
 
 var ws = new WebSocket('ws://1111hui.com:3000');
 
@@ -274,10 +265,13 @@ ws.on('error', function (err) {
 
 });
 
+
 ws.on('open', function () {
   updateHostName();
   console.log( global.IP );
-  ws.send( JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 }) );
+  clientUpMsg = JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 });
+
+  ws.send( clientUpMsg );
 });
 
 ws.on('message', function(data, flags) {
@@ -306,6 +300,12 @@ ws.on('message', function(data, flags) {
 
 });
 
+// pull ever minute to keep ws online
+// https://github.com/websockets/ws/issues/584
+setInterval(function(){
+	//if(ws.readyState==1) ws.ping('ping', { mask: true, binary: true }, true);
+	if(ws.readyState==1 && clientUpMsg) ws.send(clientUpMsg);
+}, 30000);
 
 function checkPDFCreator () {
   exec('tasklist', function(err, stdout, stderr) {
@@ -388,20 +388,19 @@ function downloadAndPrint (fileKey, printerName, shareID, person, data) {
 
       var cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
       
-      cmd = util.format( '"%s" -silent -print-to "%s" "%s"', PDFReaderPath, printerName, file );  
+      //cmd = util.format( '"%s" -silent -print-to "%s" "%s"', PDFReaderPath, printerName, file );  
       //using sumatrapdf : https://github.com/sumatrapdfreader/sumatrapdf
       
       // cmd = util.format( '"%s" /N /T "%s" "%s"', "d:\\Program Files\\Adobe\\Reader 9.0\\Reader\\AcroRd32.exe", file, printerName );  //using Adobe AcrobatReader
 
       console.log(cmd);
+	    ws.send( JSON.stringify({ type:'printerMsg', msgid:data.msgid, data:data, printerName:CLIENT_NAME, errMsg: err }) );
 
       var child = exec(cmd, function(err, stdout, stderr) {
         if (err){
           	// return callback(stderr);
          	console.log('print result', child.pid, err, stdout, stderr);
         }
-
-        ws.send( JSON.stringify({ type:'printerMsg', msgid:data.msgid, data:data, printerName:CLIENT_NAME, errMsg: err }) );
 
       });
 
@@ -522,6 +521,7 @@ function saveIntoServer (info) {
 	    {form:info},
 	    function (err, response, body) {
 
+        	fs.unlink(PDF_DIR+info.key);
 	        if (response.statusCode == 404) {
 	        	console.log('no client found:', info.client );
 	        }
