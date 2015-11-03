@@ -11,6 +11,8 @@
 var CLIENT_NAME = 'printer1';
 var HTTP_PORT = 88;
 var PDF_DIR = "E:\\PDFs\\";
+var CLIENT_ORDER = 1;
+
 
 var host = 'http://1111hui.com:88';
 FILE_HOST = 'http://7xkeim.com1.z0.glb.clouddn.com/';
@@ -269,7 +271,7 @@ ws.on('error', function (err) {
 ws.on('open', function () {
   updateHostName();
   console.log( global.IP );
-  clientUpMsg = JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:1 });
+  clientUpMsg = JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:CLIENT_ORDER });
 
   ws.send( clientUpMsg );
 });
@@ -328,11 +330,11 @@ function checkPDFCreator () {
 
     //console.log( proc?proc[1][0] : 0 );
 
-    if( !proc ){
-  	  ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'转换发生错误' }) );
-      curData = '';
-      clearInterval(interCheckProc);
-      downloadAndCreatePDF();
+    if( !proc ){  // PDFCreator will spawn 2 process, and there's no proc by chance, and may got error msg by chance, so comment below
+  	  //ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'转换发生错误' }) );
+      //curData = '';
+      // clearInterval(interCheckProc);
+      // downloadAndCreatePDF();
     } else if(curData) {
     	var pid = proc[1][0];
     	if(!curData.procID) curData.procID = [pid];
