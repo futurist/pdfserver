@@ -5,6 +5,9 @@
 * Actions: D:\crx\pdfserver\socketutf8.exe 127.0.0.1 81 "<ClientComputer>" "<Title>" "<OutputFileNames>" "<JobID>"
 * Forever:  forever start -o app-out.log -e app-err.log -l app-forever.log -a --minUptime 2000 --spinSleepTime 2000 -v app.js
 * supervisor -i . -n success app.js
+* ImageMagick with GhostScript and PrinterDriver with PaperSize defined 80x50mm
+* convert -geometry 640x400 -density 203x203 -resample 203x203 -depth 8 -quality 100 abc2.pdf abc2.jpg
+*
 */
 
 
@@ -12,6 +15,7 @@ var CLIENT_NAME = 'printer1';
 var HTTP_PORT = 88;
 var PDF_DIR = "E:\\PDFs\\";
 var CLIENT_ORDER = 1;
+var CONVERT_TIMEOUT = 60*1000;
 
 
 var host = 'http://1111hui.com:88';
@@ -41,6 +45,7 @@ var _= require('underscore');
 var mkdirp = require('mkdirp');
 
 
+var timeoutCheckProc;
 var interCheckProc;
 
 var log = require('tracer').console({
@@ -142,7 +147,8 @@ require('net').createServer(function (socket) {
         		console.log('done', curData.msgid);
 	  		  ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'ok' }) );
 		      curData = '';
-		      clearInterval(interCheckProc);
+          clearInterval(interCheckProc);
+		      clearTimeout(timeoutCheckProc);
 		      downloadAndCreatePDF();
 
         	}
@@ -293,7 +299,7 @@ ws.on('message', function(data, flags) {
 
   if( data.task == 'printPDF' ) {
 
-  // data format : {task, server, printer, fileKey, shareID, person}
+  // data format : {task, server, printer, fileKey, shareID, person, isLabel}
 
     downloadAndPrint(data.fileKey, data.printer, data.shareID, data.person, data);
 
@@ -309,7 +315,17 @@ setInterval(function(){
 	if(ws.readyState==1 && clientUpMsg) ws.send(clientUpMsg);
 }, 30000);
 
+
+function convertFail () {
+    ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'转换发生错误' }) );
+    curData = '';
+    clearInterval(interCheckProc);
+    downloadAndCreatePDF();
+}
+
 function checkPDFCreator () {
+  return;
+
   exec('tasklist', function(err, stdout, stderr) {
   	if(err) console.log(err);
 
@@ -331,10 +347,9 @@ function checkPDFCreator () {
     //console.log( proc?proc[1][0] : 0 );
 
     if( !proc ){  // PDFCreator will spawn 2 process, and there's no proc by chance, and may got error msg by chance, so comment below
-  	  //ws.send( JSON.stringify({ type:'printerMsg', msgid:curData.msgid, data:curData, printerName:CLIENT_NAME, errMsg:'转换发生错误' }) );
-      //curData = '';
-      // clearInterval(interCheckProc);
-      // downloadAndCreatePDF();
+
+      //convertFail();
+
     } else if(curData) {
     	var pid = proc[1][0];
     	if(!curData.procID) curData.procID = [pid];
@@ -356,6 +371,7 @@ function downloadAndCreatePDF () {
 
     console.log('downloadAndCreatePDF', data);
     curData = data;
+    clearTimeout( timeoutCheckProc );
 
     downloadFile(FILE_HOST + encodeURIComponent(data.key), function(err, file){
       if(err) return console.log(err);
@@ -368,7 +384,16 @@ function downloadAndCreatePDF () {
       });
 
       interCheckProc = setInterval( checkPDFCreator , 300 );
-
+      timeoutCheckProc = setTimeout(function(){
+        if(curData){
+          console.log('--PDF convert task timeout!');
+          exec('tskill "PDFCreator*"', function(err, stdout, stderr) {});
+          exec('tskill "EXCEL*"', function(err, stdout, stderr) {});
+          exec('tskill "WORD*"', function(err, stdout, stderr) {});
+          exec('tskill "POWERPNT*"', function(err, stdout, stderr) {});
+          convertFail();
+        }
+      }, CONVERT_TIMEOUT);
     });
 }
 
@@ -385,11 +410,15 @@ function downloadAndPrint (fileKey, printerName, shareID, person, data) {
       if(err) return console.log(err);
 
       file = path.resolve(file);
+      var cmd;
 
-      console.log(file);
+      if(data.isLabel){
+        var imgFile = file.replace(/\.pdf$/, '.jpg');
+        cmd = 'convert -geometry 640x400 -density 203x203 -resample 203x203 -depth 8 -quality 100 "'+file+'" "'+ imgFile +'" && rundll32 C:\\WINDOWS\\system32\\shimgvw.dll,ImageView_PrintTo /pt "'+ imgFile +'" "'+printerName+'"';
+      } else {
+        cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
+      }
 
-      var cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
-      
       //cmd = util.format( '"%s" -silent -print-to "%s" "%s"', PDFReaderPath, printerName, file );  
       //using sumatrapdf : https://github.com/sumatrapdfreader/sumatrapdf
       
@@ -489,7 +518,11 @@ function upfileToQiniu(client, title, file, curData) {
 	              ret.client = curData.client;
 	              ret.title = curData.title+'.pdf';
 	              ret.path = curData.path;
-	              if(curData) ret.srcFile = curData.key;
+                if(curData.key) ret.srcFile = curData.key;
+	              if(curData.shareID) {
+                  ret.shareID = safeEval(curData.shareID);
+                  ret.role = 'share';
+                }
 	              //ret.path = "/abc/";
 	          } else {
 	          	ret.client = client.toLowerCase();
