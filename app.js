@@ -15,7 +15,7 @@ var CLIENT_NAME = 'printer1';
 var HTTP_PORT = 88;
 var PDF_DIR = "E:\\PDFs\\";
 var CLIENT_ORDER = 1;
-var CONVERT_TIMEOUT = 60*1000;
+var CONVERT_TIMEOUT = 30*1000;
 
 
 var host = 'http://1111hui.com:88';
@@ -44,6 +44,7 @@ var _= require('underscore');
 
 var mkdirp = require('mkdirp');
 
+var WS_TIMESTAMP = Math.random().toString(36).slice(-10);
 
 var timeoutCheckProc;
 var interCheckProc;
@@ -277,7 +278,7 @@ ws.on('error', function (err) {
 ws.on('open', function () {
   updateHostName();
   console.log( global.IP );
-  clientUpMsg = JSON.stringify({ type:'clientConnected', hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:CLIENT_ORDER });
+  clientUpMsg = JSON.stringify({ type:'clientConnected', timeStamp:WS_TIMESTAMP, hostName:global.HOSTNAME, ip:global.IP, clientName:CLIENT_NAME, clientRole:'printer', clientOrder:CLIENT_ORDER });
 
   ws.send( clientUpMsg );
 });
@@ -287,8 +288,15 @@ ws.on('message', function(data, flags) {
   	data = JSON.parse(data);
   } catch(e){ return; }
 
+  if(data.msgID) {
+    ws.send( JSON.stringify({ type:'msgDone', msgID:data.msgID, clientName:CLIENT_NAME, from:'', clientRole:'printer' }) );
+  }
+
   if(data.clientName!==CLIENT_NAME) return;
 
+  if( data.role == 'exitApp' ) {
+    return process.exit();
+  }
   if( data.task == 'generatePDF' ) {
 
   // data format : {task, + qiniu data: key, fname, ... }
@@ -412,26 +420,28 @@ function downloadAndPrint (fileKey, printerName, shareID, person, data) {
       file = path.resolve(file);
       var cmd;
 
+      data.isLabel = safeEval(data.isLabel);
+      data.shareID = safeEval(data.shareID);
+
       if(data.isLabel){
         var imgFile = file.replace(/\.pdf$/, '.jpg');
         cmd = 'convert -geometry 640x400 -density 203x203 -resample 203x203 -depth 8 -quality 100 "'+file+'" "'+ imgFile +'" && rundll32 C:\\WINDOWS\\system32\\shimgvw.dll,ImageView_PrintTo /pt "'+ imgFile +'" "'+printerName+'"';
       } else {
-        cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
+        // cmd = util.format( '"%s" /N /T "%s" "%s"', "d:\\Program Files\\Adobe\\Reader 9.0\\Reader\\AcroRd32.exe", file, printerName );  //using Adobe AcrobatReader
+        //cmd = util.format( '"%s" -t "%s" "%s" ', PDFReaderPath, file, printerName );  // optional: /ManagePrintJobs
+
+        cmd = util.format( '"%s" -silent -print-to "%s" "%s"', PDFReaderPath, printerName, file );  
+        //using sumatrapdf : https://github.com/sumatrapdfreader/sumatrapdf
       }
 
-      //cmd = util.format( '"%s" -silent -print-to "%s" "%s"', PDFReaderPath, printerName, file );  
-      //using sumatrapdf : https://github.com/sumatrapdfreader/sumatrapdf
       
-      // cmd = util.format( '"%s" /N /T "%s" "%s"', "d:\\Program Files\\Adobe\\Reader 9.0\\Reader\\AcroRd32.exe", file, printerName );  //using Adobe AcrobatReader
 
       console.log(cmd);
-	    ws.send( JSON.stringify({ type:'printerMsg', msgid:data.msgid, data:data, printerName:CLIENT_NAME, errMsg: err }) );
 
       var child = exec(cmd, function(err, stdout, stderr) {
-        if (err){
-          	// return callback(stderr);
-         	console.log('print result', child.pid, err, stdout, stderr);
-        }
+        
+          console.log('print result', child.pid, err, stdout, stderr);
+          ws.send( JSON.stringify({ type:'printerMsg', msgid:data.msgid, data:data, printerName:CLIENT_NAME, errMsg: err }) );
 
       });
 
